@@ -1,5 +1,8 @@
 package com.shivamdenge.postsservice.service;
 
+import com.shivamdenge.postsservice.auth.AuthContextHolder;
+import com.shivamdenge.postsservice.client.ConnectionsServiceClient;
+import com.shivamdenge.postsservice.dto.PersonDto;
 import com.shivamdenge.postsservice.dto.PostCreateRequestDto;
 import com.shivamdenge.postsservice.dto.PostDto;
 import com.shivamdenge.postsservice.entity.Post;
@@ -20,6 +23,7 @@ public class PostService {
 
     private final ModelMapper modelMapper;
     private final PostRepository postRepository;
+    private final ConnectionsServiceClient connectionsServiceClient;
 
     public PostDto createPost(PostCreateRequestDto postCreateRequestDto, Long userId) {
         log.info("Creating post for user with id: {}", userId);
@@ -29,9 +33,18 @@ public class PostService {
         return modelMapper.map(post, PostDto.class);
     }
 
-    public PostDto getPost(Long postId) {
+    public PostDto getPostById(Long postId) {
         log.info("Getting the post with ID: {}", postId);
-        Post post = postRepository.findById(postId).orElseThrow(()-> new ResourceNotFoundException("Post not found"+postId));
+
+        Long userId = AuthContextHolder.getCurrentUserId();
+
+//        TODO: Remove in future
+//        Call the Connections Service from the Posts Service and pass the userId inside the headers
+
+        List<PersonDto> personDtoList = connectionsServiceClient.getFirstDegreeConnections(userId);
+
+        Post post = postRepository.findById(postId).orElseThrow(() -> new ResourceNotFoundException("Post not found " +
+                "with ID: "+postId));
         return modelMapper.map(post, PostDto.class);
     }
 

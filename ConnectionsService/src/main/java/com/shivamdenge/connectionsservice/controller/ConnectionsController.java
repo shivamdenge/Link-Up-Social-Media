@@ -1,8 +1,6 @@
-package com.shivamdenge.connecctionsservice.controller;
-
-
-import com.shivamdenge.connecctionsservice.entity.Person;
-import com.shivamdenge.connecctionsservice.service.ConnectionsService;
+package com.shivamdenge.connectionsservice.controller;
+import com.shivamdenge.connectionsservice.entity.Person;
+import com.shivamdenge.connectionsservice.service.ConnectionsService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;

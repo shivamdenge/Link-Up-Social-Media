@@ -1,4 +1,4 @@
-package com.shivamdenge.connecctionsservice;
+package com.shivamdenge.connectionsservice;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;

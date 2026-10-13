@@ -1,7 +1,7 @@
-package com.shivamdenge.connecctionsservice.repository;
+package com.shivamdenge.connectionsservice.repository;
 
 
-import com.shivamdenge.connecctionsservice.entity.Person;
+import com.shivamdenge.connectionsservice.entity.Person;
 import org.springframework.data.neo4j.repository.Neo4jRepository;
 import org.springframework.data.neo4j.repository.query.Query;
 

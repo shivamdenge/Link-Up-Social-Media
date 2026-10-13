@@ -1,4 +1,4 @@
-package com.shivamdenge.connecctionsservice.entity;
+package com.shivamdenge.connectionsservice.entity;
 
 import lombok.Data;
 import org.springframework.data.neo4j.core.schema.GeneratedValue;

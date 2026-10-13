@@ -1,7 +1,7 @@
-package com.shivamdenge.connecctionsservice.service;
+package com.shivamdenge.connectionsservice.service;
 
-import com.shivamdenge.connecctionsservice.entity.Person;
-import com.shivamdenge.connecctionsservice.repository.PersonRepository;
+import com.shivamdenge.connectionsservice.entity.Person;
+import com.shivamdenge.connectionsservice.repository.PersonRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
