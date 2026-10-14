@@ -1,0 +1,39 @@
+spring:
+  application:
+    name: uploader-service
+  servlet:
+    multipart:
+      max-file-size: 20MB
+      max-request-size: 25MB
+
+server:
+  servlet:
+    context-path: /uploads
+  port: 9050
+
+
+#eureka.client.service-url.defaultZone: http://localhost:8761/eureka
+
+
+cloudinary:
+  cloud-name: dwarprv0a
+  api-key: 129791487811763
+  api-secret: FAbTIrpyleNQz6Arvx9uf2O83J4
+
+
+gcloud:
+  storage-bucket-name: linkup-bucket
+  storage-access-key: >
+    {
+      "type": "service_account",
+      "project_id": "kubernetes-learn-509206",
+      "private_key_id": "9257ca8aa306a4e27f66198f17c0f741818dd8e2",
+      "private_key": "-----BEGIN PRIVATE KEY-----\nMIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQDNvBP7ST0YMbsQ\nEga07Zs0mxt0LIk3sfFEeBdEASYE3RKVXSCS0vRkX1qvj8Sq1Yn2QKVJexydEIUm\nlfAWZnFEUlOgd5dRl+VJ0VH1U43AWvX6zP/J7vyjx98gELSlv6lQdqYUCAIVrDef\nZ5XqJxVLUS0+UmrnSAjbDjApt7Yi8vtSaXZkTErEFtMGgrjBoLissrWX8wEQbZ2f\nQ3uhj+BoeEwZDOd03h71ThwlyaPeLvPq7EePcCj9d1XwdOPH4bV0GqI8lyoy7lso\nPO4+ScEX81kZC+Ax4OGqxHagDGAR1cX3z7Yy27fw8e9rl6RBq5fgOeAMM3YW4QTz\n9uEepmbpAgMBAAECggEAFAyj6t16j3jLONf04N11/mSuQn5TmgKkl05XwBgXjypH\nNRioA778s6pqQUkyuo5IXV/z66sMgQ761uWOSfSOTcDzJuR4seoqXW0BfnW3zvre\nVWR0egapBsID79FI9Y0t0Cpb6YBVSazol8eFv9WyuM4OqW/pPKRTvptNnMcrQBD+\nozCUvVjmW62B2bXXLJM0x0J5ylwkV4DeqDSSs5DhOL+G0H+ygBuUD0o3gbO032AB\nt1jiLGdVFUFLkhxEM5k58pgawEV0uYMwm1l3gt0U/oA+6ivcA6wSg3HShcDKiEJr\njvpbwQ/DtSsUP5QOsr+FtKKO+nb5diBj9uNnxPrJ3QKBgQDubXn0A1nTIzkxw15+\n8Tye/kDSVMkRsAbqNc5U77wXNkBfnI/26QMyx9m9AtlRi62vHvQEkOjyQaa2vqCY\ne1hK+rrXhcoxFdEyAlSGfUTGkFxPA6dXpBE6GfBEmdPEPAR5zNRNcIJZCoSodQUV\nBSCDuez5AUaQ/MuftdT8z64KJQKBgQDc5cTA68n8OtRzJenRzVRX86NRbVBTlAUD\nHSukh5OZ/kp/7jaIrdemKvp3poXMTTLkkDjaxumtncSA9LBv+vX1cvLkgJ7HEkZf\nDE/YUuXR30WdO0UpOa76v006MCzpwSgdUzLazvl4rRjBa59ij9EdlTWeqXIIlNBH\nXBRgpod0dQKBgE3ny59lsOYCbl/KPIgx/uLcpQWU2pZC9B93MVIje0wCWAplt8yv\n2nGvR4Aw/B1fDINaE9WiG9t8hCLWKtdoBjOJtZ9SgfyD6nTyufev2tceuGrBAN7s\nJwzbCN0BfmZyTewWd5BOIOlDPJFmmyCBKlygVcQPHKWnVEl9OnjYyz9ZAoGBAJML\neMAbtadr2gSU1mNM1bp+etc3d2NLg1KhVm39uimmdx1WC4NMheMddQG1Hhfzw88W\nmmI4S1HBVg+p0tGYM6aiUEH/xLIr3iBjZ7tO46GjiQmzbMSWm35bXiM/8oXgiL2M\npqu1X6gPQg1vgPfxWHji3ICzty8zMLpv9zinYkAJAoGAXOADobveo/DBEiZRFw45\nBc/MPutbYPf7t97M1rfS21bvUXFkSPvJAyJ/Cyoij3qruDF1f+rnLdebcdvkJBKc\n9nERJQutvqMUs1i29uKcmcemMI1jWMoU74TyNEDHmdvnwb/r4eaWpDRwfy4kOrBE\n0Lomma0fNbbMu815y+EbTBE=\n-----END PRIVATE KEY-----\n",
+      "client_email": "329328744689-compute@developer.gserviceaccount.com",
+      "client_id": "111400036227641299721",
+      "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+      "token_uri": "https://oauth2.googleapis.com/token",
+      "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+      "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/329328744689-compute%40developer.gserviceaccount.com",
+      "universe_domain": "googleapis.com"
+    }
