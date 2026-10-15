@@ -11,7 +11,7 @@
     <groupId>com.shivamdenge</groupId>
     <artifactId>ApiGateway</artifactId>
     <version>0.0.1-SNAPSHOT</version>
-    <name>ApiGateway</name>
+    <name>api-gateway</name>
     <description>ApiGateway</description>
     <url/>
     <licenses>

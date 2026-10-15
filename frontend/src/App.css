@@ -1,0 +1,19 @@
+/* App-level reset — remove default Vite styling */
+#root {
+  width: 100%;
+  min-height: 100vh;
+}
+
+/* Global spinner utility */
+.spinner {
+  width: 36px;
+  height: 36px;
+  border: 3px solid var(--color-border);
+  border-top-color: var(--color-primary);
+  border-radius: 50%;
+  animation: spin 0.75s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}

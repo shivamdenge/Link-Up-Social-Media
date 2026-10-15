@@ -11,7 +11,7 @@
     <groupId>com.shivamdenge</groupId>
     <artifactId>ConnectionsService</artifactId>
     <version>0.0.1-SNAPSHOT</version>
-    <name>ConnecctionsService</name>
+    <name>connections-service</name>
     <description>ConnecctionsService</description>
     <url/>
     <licenses>

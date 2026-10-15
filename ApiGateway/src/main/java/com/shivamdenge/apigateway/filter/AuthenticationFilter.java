@@ -6,6 +6,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.cloud.gateway.filter.GatewayFilterChain;
 import org.springframework.cloud.gateway.filter.GlobalFilter;
 import org.springframework.core.Ordered;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.server.reactive.ServerHttpRequest;
 import org.springframework.stereotype.Component;
@@ -27,10 +28,15 @@ public class AuthenticationFilter implements GlobalFilter, Ordered {
 
         ServerHttpRequest request = exchange.getRequest();
 
+        // Allow CORS preflight OPTIONS requests
+        if (request.getMethod() == HttpMethod.OPTIONS) {
+            return chain.filter(exchange);
+        }
+
         String path = request.getURI().getPath();
 
-        // Allow public endpoints
-        if (path.equals("/api/v1/users/auth/login") || path.equals("/api/v1/users/auth/signup")) {
+        // Allow public endpoints and health checks
+        if (path.equals("/api/v1/users/auth/login") || path.equals("/api/v1/users/auth/signup") || path.equals("/") || path.startsWith("/actuator")) {
             return chain.filter(exchange);
         }
 

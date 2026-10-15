@@ -6,7 +6,7 @@ metadata:
   name: kafka
 spec:
   podManagementPolicy: Parallel
-  replicas: 2
+  replicas: 1
   selector:
     matchLabels:
       app: kafka
@@ -21,10 +21,10 @@ spec:
         - sh
         - -exc
         - |
-          export CLUSTER_ID="6PMpHYL9QkeyXRj9Nrp4KA" && \
+          export CLUSTER_ID="chU2YzhnTriWIW5m73JgHQ" && \
           export KAFKA_NODE_ID=${HOSTNAME##*-} 
           export KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://${POD_NAME}.kafka:9092
-          export KAFKA_CONTROLLER_QUORUM_VOTERS="0@kafka-0.kafka:29093,1@kafka-1.kafka:29093" 
+          export KAFKA_CONTROLLER_QUORUM_VOTERS="0@kafka-0.kafka:29093" 
           exec /etc/confluent/docker/run
         env:
         - name: KAFKA_CONTROLLER_LISTENER_NAMES
@@ -48,32 +48,37 @@ spec:
           protocol: TCP
         resources:
           limits:
-            cpu: "200m"
-            memory: 1Gi
+            cpu: "1000m"
+            memory: 1.5Gi
           requests:
-            cpu: 100m
-            memory: 512Mi
+            cpu: "200m"
+            memory: 768Mi
         securityContext:
           allowPrivilegeEscalation: false
           capabilities:
             drop:
             - ALL
-          # readOnlyRootFilesystem: true
           runAsGroup: 1000
           runAsUser: 1000
         terminationMessagePath: /dev/termination-log
         terminationMessagePolicy: File
         volumeMounts:
-        - mountPath: /etc/kafka
-          name: config
+        - mountPath: /var/lib/kafka/data
+          name: data
       dnsPolicy: ClusterFirst
       schedulerName: default-scheduler
       securityContext:
         fsGroup: 1000
       terminationGracePeriodSeconds: 30
-      volumes:
-      - emptyDir: {}
-        name: config
+  volumeClaimTemplates:
+  - metadata:
+      name: data
+    spec:
+      accessModes: [ "ReadWriteOnce" ]
+      storageClassName: "standard-rwo"
+      resources:
+        requests:
+          storage: 5Gi
 
 ---
 

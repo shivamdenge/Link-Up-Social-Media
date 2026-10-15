@@ -18,11 +18,11 @@ spec:
         image: neo4j:4.4.39-community
         resources:
           limits:
-            cpu: "200m"
+            cpu: "1000m"
             memory: 4Gi
           requests:
-            cpu: 100m
-            memory: 600Mi
+            cpu: "200m"
+            memory: 2.5Gi
         ports:
           - containerPort: 7687 # Bolt
         env:
@@ -46,6 +46,7 @@ spec:
         name: neo4j-data
       spec:
         accessModes: ["ReadWriteOnce"]
+        storageClassName: "standard-rwo"
         resources:
           requests:
             storage: 2Gi
@@ -53,6 +54,7 @@ spec:
         name: neo4j-logs
       spec:
         accessModes: ["ReadWriteOnce"]
+        storageClassName: "standard-rwo"
         resources:
           requests:
             storage: 1Gi

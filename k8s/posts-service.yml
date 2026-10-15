@@ -13,14 +13,15 @@ spec:
     spec:
       containers:
       - name: posts-service
-        image: anuj55149/linkedin-app-posts-service
+        image: shivamdenge/linkup-posts-service
+        imagePullPolicy: Always
         resources:
           limits:
-            memory: "400Mi"
-            cpu: "200m"
+            memory: "650Mi"
+            cpu: "500m"
           requests:
-            memory: "200Mi"
-            cpu: "100m"
+            memory: "300Mi"
+            cpu: "150m"
         env:
           - name: SPRING_PROFILES_ACTIVE
             value: k8s

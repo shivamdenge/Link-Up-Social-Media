@@ -22,7 +22,7 @@ cloudinary:
 
 
 gcloud:
-  storage-bucket-name: linkup-bucket
+  storage-bucket-name: ${GCLOUD_STORAGE_BUCKET_NAME:linkup-bucket}
   storage-access-key: >
     {
       "type": "service_account",

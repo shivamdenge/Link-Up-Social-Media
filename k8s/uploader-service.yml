@@ -13,14 +13,14 @@ spec:
     spec:
       containers:
       - name: uploader-service
-        image: anuj55149/linkedin-app-uploader-service
+        image: shivamdenge/linkup-uploader-service
         resources:
           limits:
-            memory: "400Mi"
-            cpu: "200m"
+            memory: "650Mi"
+            cpu: "500m"
           requests:
-            memory: "200Mi"
-            cpu: "100m"
+            memory: "300Mi"
+            cpu: "150m"
         env:
           - name: SPRING_PROFILES_ACTIVE
             value: k8s

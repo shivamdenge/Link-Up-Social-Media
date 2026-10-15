@@ -46,7 +46,7 @@ public class PostsConsumer {
 
     @KafkaListener(topics = "user_created_topic")
     public void handleUserCreated(UserCreatedEvent userCreatedEvent) {
-        log.info("handlePostLiked: {}", userCreatedEvent);
+        log.info("handleUserCreated: {}", userCreatedEvent);
 
         String message = String.format("User with id: %d and name : %s created",
                 userCreatedEvent.getUserId(), userCreatedEvent.getName());

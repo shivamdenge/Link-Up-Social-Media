@@ -12,7 +12,9 @@ public class RequestInterceptor implements HandlerInterceptor {
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler)
             throws Exception {
         String userId = request.getHeader("X-User-Id");
-        AuthContextHolder.setCurrentUserId(Long.valueOf(userId));
+        if (userId != null && !userId.isBlank()) {
+            AuthContextHolder.setCurrentUserId(Long.valueOf(userId));
+        }
         return HandlerInterceptor.super.preHandle(request, response, handler);
     }
 

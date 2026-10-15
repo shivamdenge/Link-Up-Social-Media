@@ -1,0 +1,51 @@
+/* ===== CONNECTION CARD ===== */
+.connection-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--color-border-light);
+  transition: opacity var(--transition-fast);
+}
+
+.connection-card:last-child {
+  border-bottom: none;
+}
+
+.connection-card-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.connection-card-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.connection-card-sub {
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+
+.connection-card-actions {
+  flex-shrink: 0;
+}
+
+.connection-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-success);
+  background: var(--color-success-light);
+  padding: 4px 10px;
+  border-radius: var(--radius-full);
+}

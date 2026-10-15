@@ -11,7 +11,7 @@
     <groupId>com.shivamdenge</groupId>
     <artifactId>postsService</artifactId>
     <version>0.0.1-SNAPSHOT</version>
-    <name>postsService</name>
+    <name>posts-service</name>
     <description>postsService</description>
     <url/>
     <licenses>
