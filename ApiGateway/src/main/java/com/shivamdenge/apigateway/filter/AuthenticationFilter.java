@@ -17,6 +17,7 @@ import reactor.core.publisher.Mono;
 @Component
 public class AuthenticationFilter implements GlobalFilter, Ordered {
 
+
     private final JwtService jwtService;
 
     public AuthenticationFilter(JwtService jwtService) {
