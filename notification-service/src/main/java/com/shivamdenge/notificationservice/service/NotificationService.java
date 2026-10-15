@@ -17,4 +17,12 @@ public class NotificationService {
         log.info("Adding notification to DB {}",notification.getMessage());
         notificationRepository.save(notification);
     }
+
+    public java.util.List<Notification> getNotificationsForUser(Long userId) {
+        log.info("Getting notifications for user ID: {}", userId);
+        if (userId == null) {
+            return java.util.List.of();
+        }
+        return notificationRepository.findByUserIdOrderByCreatedAtDesc(userId);
+    }
 }

@@ -1,35 +1,129 @@
 import './Navbar.css';
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { Avatar } from '../ui/Avatar';
+import { userApi } from '../../api/userApi';
+import { notificationApi } from '../../api/notificationApi';
+import { connectionApi } from '../../api/connectionApi';
 import {
-  Home, Users, LogOut, User, ChevronDown, Menu, X
+  Home, Users, LogOut, User, ChevronDown, Menu, X, Search, Bell, UserPlus, Check, Clock
 } from 'lucide-react';
+import toast from 'react-hot-toast';
 
 export function Navbar() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  const [dropdownOpen, setDropdownOpen] = useState(false);
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const dropdownRef = useRef(null);
 
-  // Close dropdown on outside click
+  // Dropdowns
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  // Search state
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState([]);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [statuses, setStatuses] = useState({}); // { [userId]: status }
+
+  // Notifications state
+  const [notifications, setNotifications] = useState([]);
+  const [notificationsLoading, setNotificationsLoading] = useState(false);
+
+  const dropdownRef = useRef(null);
+  const notifRef = useRef(null);
+  const searchRef = useRef(null);
+  const searchTimeoutRef = useRef(null);
+
+  // Fetch notifications
+  const loadNotifications = useCallback(async () => {
+    if (!user?.id) return;
+    try {
+      const data = await notificationApi.getNotifications();
+      setNotifications(data || []);
+    } catch {
+      // ignore
+    }
+  }, [user?.id]);
+
+  useEffect(() => {
+    loadNotifications();
+    const interval = setInterval(loadNotifications, 30000); // 30s poll
+    return () => clearInterval(interval);
+  }, [loadNotifications]);
+
+  // Close dropdowns on outside click
   useEffect(() => {
     function handleOutside(e) {
       if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
         setDropdownOpen(false);
+      }
+      if (notifRef.current && !notifRef.current.contains(e.target)) {
+        setNotificationsOpen(false);
+      }
+      if (searchRef.current && !searchRef.current.contains(e.target)) {
+        setSearchOpen(false);
       }
     }
     document.addEventListener('mousedown', handleOutside);
     return () => document.removeEventListener('mousedown', handleOutside);
   }, []);
 
-  // Close mobile menu on route change
+  // Close on route change
   useEffect(() => {
     setMobileMenuOpen(false);
+    setSearchOpen(false);
+    setNotificationsOpen(false);
   }, [location.pathname]);
+
+  // Handle Search Input Debounce
+  function handleSearchChange(e) {
+    const val = e.target.value;
+    setSearchQuery(val);
+
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+    }
+
+    if (!val.trim()) {
+      setSearchResults([]);
+      setSearchOpen(false);
+      return;
+    }
+
+    setSearchLoading(true);
+    setSearchOpen(true);
+
+    searchTimeoutRef.current = setTimeout(async () => {
+      try {
+        const users = await userApi.searchUsers(val.trim());
+        setSearchResults(users);
+
+        // Fetch connection status for results
+        if (users.length > 0 && user?.id) {
+          const ids = users.map((u) => u.id);
+          const statusMap = await connectionApi.getBatchStatus(ids);
+          setStatuses((prev) => ({ ...prev, ...statusMap }));
+        }
+      } catch {
+        // search error fallback
+      } finally {
+        setSearchLoading(false);
+      }
+    }, 300);
+  }
+
+  async function handleConnectFromSearch(targetUser) {
+    try {
+      await connectionApi.sendRequest(targetUser.id);
+      toast.success(`Connection request sent to ${targetUser.name}!`);
+      setStatuses((prev) => ({ ...prev, [targetUser.id]: 'PENDING_SENT' }));
+    } catch (err) {
+      toast.error(err?.response?.data?.message || 'Failed to send request');
+    }
+  }
 
   function handleLogout() {
     logout();
@@ -48,19 +142,103 @@ export function Navbar() {
   return (
     <nav className="navbar">
       <div className="navbar-container">
-        {/* Logo */}
-        <Link to="/" className="navbar-logo" aria-label="LinkUp Home">
-          <div className="navbar-logo-icon">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="white">
-              <path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-2-2 2 2 0 0 0-2 2v7h-4v-7a6 6 0 0 1 6-6z"/>
-              <rect x="2" y="9" width="4" height="12"/>
-              <circle cx="4" cy="4" r="2"/>
-            </svg>
-          </div>
-          <span className="navbar-logo-text">LinkUp</span>
-        </Link>
+        {/* Left: Logo & Search */}
+        <div className="navbar-left">
+          <Link to="/" className="navbar-logo" aria-label="LinkUp Home">
+            <div className="navbar-logo-icon">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="white">
+                <path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-2-2 2 2 0 0 0-2 2v7h-4v-7a6 6 0 0 1 6-6z"/>
+                <rect x="2" y="9" width="4" height="12"/>
+                <circle cx="4" cy="4" r="2"/>
+              </svg>
+            </div>
+            <span className="navbar-logo-text">LinkUp</span>
+          </Link>
 
-        {/* Desktop Nav */}
+          {/* Search Box */}
+          <div className="navbar-search" ref={searchRef}>
+            <Search size={16} className="navbar-search-icon" />
+            <input
+              type="text"
+              placeholder="Search professionals by name..."
+              value={searchQuery}
+              onChange={handleSearchChange}
+              onFocus={() => {
+                if (searchResults.length > 0) setSearchOpen(true);
+              }}
+              className="navbar-search-input"
+            />
+            {searchQuery && (
+              <button
+                className="navbar-search-clear"
+                onClick={() => {
+                  setSearchQuery('');
+                  setSearchResults([]);
+                  setSearchOpen(false);
+                }}
+              >
+                <X size={14} />
+              </button>
+            )}
+
+            {/* Search Dropdown Results */}
+            {searchOpen && (
+              <div className="navbar-search-dropdown animate-slide-down">
+                {searchLoading ? (
+                  <div className="navbar-search-loading">Searching...</div>
+                ) : searchResults.length === 0 ? (
+                  <div className="navbar-search-empty">No professionals found for "{searchQuery}"</div>
+                ) : (
+                  <div className="navbar-search-list">
+                    {searchResults.map((person) => {
+                      const isMe = person.id === user?.id;
+                      const status = statuses[person.id] || (isMe ? 'SELF' : 'NOT_CONNECTED');
+                      return (
+                        <div key={person.id} className="navbar-search-item">
+                          <Avatar name={person.name} userId={person.id} size="sm" />
+                          <div className="navbar-search-info">
+                            <span className="navbar-search-name">{person.name}</span>
+                            <span className="navbar-search-email">{person.email}</span>
+                          </div>
+
+                          <div className="navbar-search-action">
+                            {isMe ? (
+                              <span className="badge-pill badge-neutral">You</span>
+                            ) : status === 'CONNECTED' ? (
+                              <span className="badge-pill badge-success">
+                                <Check size={12} /> Connected
+                              </span>
+                            ) : status === 'PENDING_SENT' ? (
+                              <span className="badge-pill badge-warning">
+                                <Clock size={12} /> Pending
+                              </span>
+                            ) : status === 'PENDING_RECEIVED' ? (
+                              <button
+                                className="btn btn-xs btn-primary"
+                                onClick={() => navigate('/connections')}
+                              >
+                                View Invite
+                              </button>
+                            ) : (
+                              <button
+                                className="btn btn-xs btn-outline"
+                                onClick={() => handleConnectFromSearch(person)}
+                              >
+                                <UserPlus size={13} /> Connect
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Center: Desktop Nav */}
         <div className="navbar-nav">
           {navLinks.map(({ to, icon: Icon, label }) => (
             <Link
@@ -75,8 +253,57 @@ export function Navbar() {
           ))}
         </div>
 
-        {/* Right actions */}
+        {/* Right: Notifications & Profile */}
         <div className="navbar-actions">
+          {/* Notifications Dropdown */}
+          <div className="dropdown" ref={notifRef}>
+            <button
+              className="navbar-icon-btn"
+              onClick={() => {
+                setNotificationsOpen((v) => !v);
+                if (!notificationsOpen) loadNotifications();
+              }}
+              title="Notifications"
+            >
+              <Bell size={20} />
+              {notifications.length > 0 && (
+                <span className="navbar-badge">{notifications.length > 9 ? '9+' : notifications.length}</span>
+              )}
+            </button>
+
+            {notificationsOpen && (
+              <div className="dropdown-menu navbar-notif-dropdown animate-slide-down">
+                <div className="navbar-notif-header">
+                  <span className="font-semibold">Notifications</span>
+                  {notifications.length > 0 && (
+                    <span className="text-xs text-muted">{notifications.length} updates</span>
+                  )}
+                </div>
+                <div className="navbar-notif-body">
+                  {notifications.length === 0 ? (
+                    <div className="navbar-notif-empty">No notifications yet</div>
+                  ) : (
+                    notifications.map((notif) => (
+                      <div key={notif.id} className="navbar-notif-item">
+                        <div className="navbar-notif-icon">
+                          <Bell size={14} />
+                        </div>
+                        <div className="navbar-notif-content">
+                          <p className="navbar-notif-msg">{notif.message}</p>
+                          {notif.createdAt && (
+                            <span className="navbar-notif-time">
+                              {new Date(notif.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+
           {/* Profile dropdown */}
           <div className="dropdown" ref={dropdownRef}>
             <button
@@ -92,7 +319,6 @@ export function Navbar() {
 
             {dropdownOpen && (
               <div className="dropdown-menu navbar-dropdown animate-slide-down" role="menu">
-                {/* Profile card at top */}
                 <div className="navbar-dropdown-profile">
                   <Avatar name={user?.name} userId={user?.id} size="md" />
                   <div>

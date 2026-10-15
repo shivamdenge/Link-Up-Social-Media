@@ -8,6 +8,10 @@ export const API_ENDPOINTS = {
   SIGNUP: `${API_BASE_URL}/api/v1/users/auth/signup`,
   LOGIN: `${API_BASE_URL}/api/v1/users/auth/login`,
 
+  // Users Service
+  SEARCH_USERS: (query) => `${API_BASE_URL}/api/v1/users/core/search?query=${encodeURIComponent(query)}`,
+  GET_USER: (userId) => `${API_BASE_URL}/api/v1/users/core/${userId}`,
+
   // Posts Service
   POSTS_BASE: `${API_BASE_URL}/api/v1/posts`,
   CREATE_POST: `${API_BASE_URL}/api/v1/posts/core`,
@@ -18,9 +22,16 @@ export const API_ENDPOINTS = {
 
   // Connections Service
   GET_CONNECTIONS: (userId) => `${API_BASE_URL}/api/v1/connections/core/${userId}/first-degree`,
+  GET_RECEIVED_REQUESTS: `${API_BASE_URL}/api/v1/connections/core/requests/received`,
+  GET_SENT_REQUESTS: `${API_BASE_URL}/api/v1/connections/core/requests/sent`,
+  GET_CONNECTION_STATUS: (userId) => `${API_BASE_URL}/api/v1/connections/core/status/${userId}`,
+  GET_BATCH_CONNECTION_STATUS: `${API_BASE_URL}/api/v1/connections/core/status/batch`,
   SEND_CONNECTION_REQUEST: (userId) => `${API_BASE_URL}/api/v1/connections/core/request/${userId}`,
   ACCEPT_CONNECTION_REQUEST: (userId) => `${API_BASE_URL}/api/v1/connections/core/accept/${userId}`,
   REJECT_CONNECTION_REQUEST: (userId) => `${API_BASE_URL}/api/v1/connections/core/reject/${userId}`,
+
+  // Notification Service
+  GET_NOTIFICATIONS: `${API_BASE_URL}/api/v1/notifications/core`,
 };
 
 export default API_BASE_URL;

@@ -1,289 +1,487 @@
 import './ConnectionsPage.css';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { connectionApi } from '../../api/connectionApi';
+import { userApi } from '../../api/userApi';
 import { Navbar } from '../../components/layout/Navbar';
-import { ConnectionCard } from '../../components/connections/ConnectionCard';
+import { Avatar } from '../../components/ui/Avatar';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { SkeletonConnectionCard } from '../../components/ui/Skeleton';
 import { getErrorMessage } from '../../utils/helpers';
 import toast from 'react-hot-toast';
-import { Users, UserPlus, RefreshCw, Info } from 'lucide-react';
+import {
+  Users, UserPlus, RefreshCw, Check, X, Clock, Search, ShieldCheck
+} from 'lucide-react';
 
-/**
- * Connections Page.
- *
- * Backend supports:
- * - GET /api/v1/connections/core/{userId}/first-degree
- * - POST /api/v1/connections/core/request/{userId}
- * - POST /api/v1/connections/core/accept/{userId}
- * - POST /api/v1/connections/core/reject/{userId}
- *
- * Not supported by backend:
- * - No API to get pending/received connection requests
- * - No API to search users to send requests to
- *
- * Workaround: Allow user to manually enter a userId to send a request.
- */
 export function ConnectionsPage() {
   const { user } = useAuth();
 
+  // Data states
   const [connections, setConnections] = useState([]);
+  const [invitations, setInvitations] = useState([]);
+  const [sentRequests, setSentRequests] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const [refreshing, setRefreshing] = useState(false);
 
-  // Manual connect panel
-  const [targetUserId, setTargetUserId] = useState('');
-  const [sendingRequest, setSendingRequest] = useState(false);
+  // Search people state
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState([]);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [searchStatuses, setSearchStatuses] = useState({});
 
-  // Accept/Reject panel (manual userId for pending requests)
-  const [pendingId, setPendingId] = useState('');
-  const [processingPending, setProcessingPending] = useState(false);
-  const [pendingAction, setPendingAction] = useState('accept'); // 'accept' | 'reject'
+  // Action loading state (per user ID)
+  const [processingId, setProcessingId] = useState(null);
 
-  const loadConnections = useCallback(async () => {
+  // Connections filter query
+  const [connectionsFilter, setConnectionsFilter] = useState('');
+
+  const searchDebounceRef = useRef(null);
+
+  // Load invitations, sent requests, and connections
+  const loadNetworkData = useCallback(async () => {
     if (!user?.id) return;
-    setLoading(true);
-    setError(null);
     try {
-      const data = await connectionApi.getConnections(user.id);
-      setConnections(data);
+      const [connectionsData, receivedData, sentData] = await Promise.allSettled([
+        connectionApi.getConnections(user.id),
+        connectionApi.getReceivedRequests(),
+        connectionApi.getSentRequests(),
+      ]);
+
+      if (connectionsData.status === 'fulfilled') {
+        setConnections(connectionsData.value || []);
+      }
+      if (receivedData.status === 'fulfilled') {
+        setInvitations(receivedData.value || []);
+      }
+      if (sentData.status === 'fulfilled') {
+        setSentRequests(sentData.value || []);
+      }
     } catch (err) {
-      setError(getErrorMessage(err));
+      toast.error('Failed to load network data: ' + getErrorMessage(err));
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   }, [user?.id]);
 
   useEffect(() => {
-    loadConnections();
-  }, [loadConnections]);
+    loadNetworkData();
+  }, [loadNetworkData]);
 
-  async function handleSendRequest(e) {
-    e.preventDefault();
-    const uid = parseInt(targetUserId, 10);
-    if (!uid || isNaN(uid)) { toast.error('Enter a valid User ID'); return; }
-    if (uid === user?.id) { toast.error("You can't connect with yourself"); return; }
-
-    setSendingRequest(true);
-    try {
-      await connectionApi.sendRequest(uid);
-      toast.success(`Connection request sent to User #${uid}!`);
-      setTargetUserId('');
-    } catch (err) {
-      toast.error(getErrorMessage(err));
-    } finally {
-      setSendingRequest(false);
-    }
+  function handleRefresh() {
+    setRefreshing(true);
+    loadNetworkData();
   }
 
-  async function handlePendingAction(e) {
-    e.preventDefault();
-    const uid = parseInt(pendingId, 10);
-    if (!uid || isNaN(uid)) { toast.error('Enter a valid User ID'); return; }
+  // Handle Search Input
+  function handleSearchChange(e) {
+    const query = e.target.value;
+    setSearchQuery(query);
 
-    setProcessingPending(true);
-    try {
-      if (pendingAction === 'accept') {
-        await connectionApi.acceptRequest(uid);
-        toast.success(`Connected with User #${uid}!`);
-        await loadConnections();
-      } else {
-        await connectionApi.rejectRequest(uid);
-        toast(`Request from User #${uid} rejected`);
+    if (searchDebounceRef.current) {
+      clearTimeout(searchDebounceRef.current);
+    }
+
+    if (!query.trim()) {
+      setSearchResults([]);
+      return;
+    }
+
+    setSearchLoading(true);
+    searchDebounceRef.current = setTimeout(async () => {
+      try {
+        const users = await userApi.searchUsers(query.trim());
+        setSearchResults(users);
+
+        if (users.length > 0 && user?.id) {
+          const ids = users.map((u) => u.id);
+          const statusMap = await connectionApi.getBatchStatus(ids);
+          setSearchStatuses((prev) => ({ ...prev, ...statusMap }));
+        }
+      } catch (err) {
+        toast.error('Search failed: ' + getErrorMessage(err));
+      } finally {
+        setSearchLoading(false);
       }
-      setPendingId('');
+    }, 300);
+  }
+
+  // Accept Invitation
+  async function handleAccept(sender) {
+    const senderId = sender.userId || sender.id;
+    setProcessingId(senderId);
+    try {
+      await connectionApi.acceptRequest(senderId);
+      toast.success(`Connected with ${sender.name || 'User'}!`);
+
+      // Optimistic update
+      setInvitations((prev) => prev.filter((inv) => (inv.userId || inv.id) !== senderId));
+      setConnections((prev) => [...prev, { userId: senderId, name: sender.name }]);
+      setSearchStatuses((prev) => ({ ...prev, [senderId]: 'CONNECTED' }));
     } catch (err) {
       toast.error(getErrorMessage(err));
     } finally {
-      setProcessingPending(false);
+      setProcessingId(null);
     }
   }
+
+  // Ignore / Reject Invitation
+  async function handleIgnore(sender) {
+    const senderId = sender.userId || sender.id;
+    setProcessingId(senderId);
+    try {
+      await connectionApi.rejectRequest(senderId);
+      toast(`Ignored invitation from ${sender.name || 'User'}`);
+
+      // Optimistic update
+      setInvitations((prev) => prev.filter((inv) => (inv.userId || inv.id) !== senderId));
+      setSearchStatuses((prev) => ({ ...prev, [senderId]: 'NOT_CONNECTED' }));
+    } catch (err) {
+      toast.error(getErrorMessage(err));
+    } finally {
+      setProcessingId(null);
+    }
+  }
+
+  // Send Connection Request
+  async function handleSendConnect(targetUser) {
+    const targetId = targetUser.userId || targetUser.id;
+    if (targetId === user?.id) {
+      toast.error("You can't connect with yourself");
+      return;
+    }
+
+    setProcessingId(targetId);
+    try {
+      await connectionApi.sendRequest(targetId);
+      toast.success(`Connection request sent to ${targetUser.name}!`);
+
+      // Optimistic update
+      setSearchStatuses((prev) => ({ ...prev, [targetId]: 'PENDING_SENT' }));
+      setSentRequests((prev) => [...prev, { userId: targetId, name: targetUser.name }]);
+    } catch (err) {
+      toast.error(getErrorMessage(err));
+    } finally {
+      setProcessingId(null);
+    }
+  }
+
+  // Filter existing connections
+  const filteredConnections = connections.filter((c) =>
+    (c.name || '').toLowerCase().includes(connectionsFilter.toLowerCase())
+  );
 
   return (
-    <>
+    <div className="page-wrapper">
       <Navbar />
-      <div className="page-wrapper">
-        <div className="container">
-          <div className="connections-page animate-fade-in">
-            {/* Header */}
-            <div className="connections-page-header">
-              <div>
-                <h1 className="connections-title">My Network</h1>
-                <p className="text-secondary" style={{ fontSize: 14 }}>
-                  {connections.length} first-degree connection{connections.length !== 1 ? 's' : ''}
-                </p>
+
+      <main className="main-content connections-page">
+        <div className="connections-page-header">
+          <div>
+            <h1 className="connections-title">My Network</h1>
+            <p className="text-sm text-muted">
+              {connections.length} {connections.length === 1 ? 'connection' : 'connections'}
+            </p>
+          </div>
+          <button
+            className="btn btn-outline btn-sm"
+            onClick={handleRefresh}
+            disabled={refreshing || loading}
+            id="refresh-network-btn"
+          >
+            <RefreshCw size={14} className={refreshing ? 'animate-spin' : ''} />
+            Refresh
+          </button>
+        </div>
+
+        <div className="connections-layout">
+          {/* Main Left Column */}
+          <div className="connections-main-col">
+            {/* 1. INVITATIONS CARD (Received requests) */}
+            <div className="card invitations-card">
+              <div className="card-header invitations-header">
+                <div className="invitations-header-title">
+                  <UserPlus size={18} className="text-primary" />
+                  <span className="font-bold">Invitations</span>
+                  {invitations.length > 0 && (
+                    <span className="invitations-badge">{invitations.length}</span>
+                  )}
+                </div>
               </div>
-              <button
-                className="btn btn-ghost"
-                onClick={loadConnections}
-                disabled={loading}
-                id="refresh-connections-btn"
-                aria-label="Refresh connections"
-              >
-                <RefreshCw size={16} className={loading ? 'spin' : ''} />
-                Refresh
-              </button>
+
+              {loading ? (
+                <div className="card-body">
+                  <SkeletonConnectionCard />
+                  <SkeletonConnectionCard />
+                </div>
+              ) : invitations.length === 0 ? (
+                <div className="invitations-empty">
+                  <ShieldCheck size={28} className="text-muted" />
+                  <p className="text-sm font-medium">No pending invitations</p>
+                  <p className="text-xs text-muted">
+                    When someone wants to connect with you, their request will appear here.
+                  </p>
+                </div>
+              ) : (
+                <div className="invitations-list">
+                  {invitations.map((inv) => {
+                    const invId = inv.userId || inv.id;
+                    const isProcessing = processingId === invId;
+                    return (
+                      <div key={invId} className="invitation-item">
+                        <div className="invitation-user">
+                          <Avatar name={inv.name} userId={invId} size="md" />
+                          <div className="invitation-info">
+                            <h3 className="invitation-name">{inv.name || `User #${invId}`}</h3>
+                            <p className="invitation-subtitle">wants to connect with you</p>
+                          </div>
+                        </div>
+
+                        <div className="invitation-actions">
+                          <button
+                            className="btn btn-ghost btn-sm text-muted"
+                            onClick={() => handleIgnore(inv)}
+                            disabled={isProcessing}
+                            title="Ignore request"
+                          >
+                            <X size={16} />
+                            Ignore
+                          </button>
+                          <button
+                            className="btn btn-primary btn-sm"
+                            onClick={() => handleAccept(inv)}
+                            disabled={isProcessing}
+                            title="Accept request"
+                          >
+                            <Check size={16} />
+                            Accept
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
 
-            <div className="connections-grid">
-              {/* Left: Connections List */}
-              <div className="connections-list-section">
-                <div className="card">
-                  <div className="connections-list-header">
-                    <Users size={16} />
-                    <span>Connections</span>
-                    <span className="badge badge-primary">{connections.length}</span>
-                  </div>
-
-                  <div style={{ padding: '0 16px 8px' }}>
-                    {error ? (
-                      <div className="connections-error">
-                        <p style={{ color: 'var(--color-danger)', marginBottom: 12 }}>{error}</p>
-                        <button className="btn btn-outline-primary btn-sm" onClick={loadConnections}>
-                          Try Again
-                        </button>
-                      </div>
-                    ) : loading ? (
-                      <>
-                        <SkeletonConnectionCard />
-                        <SkeletonConnectionCard />
-                        <SkeletonConnectionCard />
-                        <SkeletonConnectionCard />
-                      </>
-                    ) : connections.length === 0 ? (
-                      <EmptyState
-                        icon={<Users size={32} />}
-                        title="No connections yet"
-                        description="Use the panel on the right to send connection requests to other users."
-                      />
-                    ) : (
-                      connections.map((person) => (
-                        <ConnectionCard
-                          key={person.id}
-                          person={person}
-                          variant="connected"
-                        />
-                      ))
-                    )}
-                  </div>
+            {/* 2. FIND PEOPLE BY NAME (Search Section) */}
+            <div className="card search-people-card">
+              <div className="card-header">
+                <div className="search-people-header">
+                  <Search size={18} className="text-primary" />
+                  <span className="font-bold">Find People You May Know</span>
                 </div>
               </div>
 
-              {/* Right: Actions Panel */}
-              <div className="connections-actions-section">
-                {/* Send Request Panel */}
-                <div className="card">
-                  <div className="card-body">
-                    <div className="flex items-center gap-2 mb-4">
-                      <UserPlus size={18} style={{ color: 'var(--color-primary)' }} />
-                      <h3 style={{ fontSize: 15 }}>Send Connection Request</h3>
-                    </div>
-
-                    <form onSubmit={handleSendRequest} className="connections-form">
-                      <div className="form-group">
-                        <label className="form-label" htmlFor="target-user-id">
-                          Target User ID
-                        </label>
-                        <input
-                          id="target-user-id"
-                          type="number"
-                          className="form-input"
-                          placeholder="e.g. 42"
-                          value={targetUserId}
-                          onChange={(e) => setTargetUserId(e.target.value)}
-                          min="1"
-                        />
-                      </div>
-                      <button
-                        type="submit"
-                        className="btn btn-primary btn-full"
-                        disabled={sendingRequest || !targetUserId}
-                        id="send-connection-request-btn"
-                      >
-                        <UserPlus size={16} />
-                        {sendingRequest ? 'Sending…' : 'Send Request'}
-                      </button>
-                    </form>
-
-                    <div className="connections-api-note">
-                      <Info size={12} />
-                      <span>Enter the Member ID of the professional you want to connect with.</span>
-                    </div>
-                  </div>
+              <div className="card-body">
+                <div className="people-search-bar">
+                  <Search size={16} className="people-search-icon" />
+                  <input
+                    type="text"
+                    placeholder="Search by full name or keyword..."
+                    value={searchQuery}
+                    onChange={handleSearchChange}
+                    className="people-search-input"
+                    id="search-people-input"
+                  />
+                  {searchQuery && (
+                    <button
+                      className="people-search-clear"
+                      onClick={() => {
+                        setSearchQuery('');
+                        setSearchResults([]);
+                      }}
+                    >
+                      <X size={14} />
+                    </button>
+                  )}
                 </div>
 
-                {/* Accept/Reject Panel */}
-                <div className="card" style={{ marginTop: 12 }}>
-                  <div className="card-body">
-                    <h3 style={{ fontSize: 15, marginBottom: 4 }}>Manage Requests</h3>
-                    <p className="text-xs text-muted" style={{ marginBottom: 16 }}>
-                      Accept or reject a connection request using the sender's Member ID.
-                    </p>
-
-                    <form onSubmit={handlePendingAction} className="connections-form">
-                      <div className="form-group">
-                        <label className="form-label" htmlFor="pending-user-id">
-                          Sender's Member ID
-                        </label>
-                        <input
-                          id="pending-user-id"
-                          type="number"
-                          className="form-input"
-                          placeholder="e.g. 7"
-                          value={pendingId}
-                          onChange={(e) => setPendingId(e.target.value)}
-                          min="1"
-                        />
-                      </div>
-
-                      <div className="connections-action-tabs">
-                        <button
-                          type="button"
-                          className={`connections-tab ${pendingAction === 'accept' ? 'active' : ''}`}
-                          onClick={() => setPendingAction('accept')}
-                        >
-                          Accept
-                        </button>
-                        <button
-                          type="button"
-                          className={`connections-tab ${pendingAction === 'reject' ? 'active danger' : ''}`}
-                          onClick={() => setPendingAction('reject')}
-                        >
-                          Reject
-                        </button>
-                      </div>
-
-                      <button
-                        type="submit"
-                        className={`btn btn-full ${pendingAction === 'accept' ? 'btn-primary' : 'btn-danger'}`}
-                        disabled={processingPending || !pendingId}
-                        id="manage-request-btn"
-                      >
-                        {processingPending ? 'Processing…' : pendingAction === 'accept' ? 'Accept Request' : 'Reject Request'}
-                      </button>
-                    </form>
+                {searchLoading ? (
+                  <div className="search-people-loading">
+                    <RefreshCw size={18} className="animate-spin text-primary" />
+                    <span>Searching professionals...</span>
                   </div>
+                ) : searchResults.length > 0 ? (
+                  <div className="people-results-grid">
+                    {searchResults.map((person) => {
+                      const isMe = person.id === user?.id;
+                      const status = searchStatuses[person.id] || (isMe ? 'SELF' : 'NOT_CONNECTED');
+                      const isProcessing = processingId === person.id;
+
+                      return (
+                        <div key={person.id} className="person-result-card">
+                          <div className="person-result-top">
+                            <Avatar name={person.name} userId={person.id} size="lg" />
+                            <h4 className="person-result-name">{person.name}</h4>
+                            <p className="person-result-email">{person.email}</p>
+                          </div>
+
+                          <div className="person-result-action">
+                            {isMe ? (
+                              <span className="badge-pill badge-neutral">You</span>
+                            ) : status === 'CONNECTED' ? (
+                              <span className="badge-pill badge-success">
+                                <Check size={13} /> Connected
+                              </span>
+                            ) : status === 'PENDING_SENT' ? (
+                              <span className="badge-pill badge-warning">
+                                <Clock size={13} /> Request Sent
+                              </span>
+                            ) : status === 'PENDING_RECEIVED' ? (
+                              <div className="person-result-btn-group">
+                                <button
+                                  className="btn btn-primary btn-xs"
+                                  onClick={() => handleAccept(person)}
+                                  disabled={isProcessing}
+                                >
+                                  Accept
+                                </button>
+                                <button
+                                  className="btn btn-ghost btn-xs"
+                                  onClick={() => handleIgnore(person)}
+                                  disabled={isProcessing}
+                                >
+                                  Ignore
+                                </button>
+                              </div>
+                            ) : (
+                              <button
+                                className="btn btn-primary btn-sm w-full"
+                                onClick={() => handleSendConnect(person)}
+                                disabled={isProcessing}
+                              >
+                                <UserPlus size={14} />
+                                {isProcessing ? 'Sending...' : 'Connect'}
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : searchQuery ? (
+                  <div className="search-people-none">
+                    No users found matching "<strong>{searchQuery}</strong>".
+                  </div>
+                ) : (
+                  <p className="text-xs text-muted mt-2">
+                    Tip: Type a name above to search for people and send instant connection requests.
+                  </p>
+                )}
+              </div>
+            </div>
+
+            {/* 3. MY CONNECTIONS (Existing Connections) */}
+            <div className="card connections-list-card">
+              <div className="card-header connections-list-header">
+                <div className="flex items-center gap-2">
+                  <Users size={18} className="text-primary" />
+                  <span className="font-bold">Connections</span>
+                  <span className="badge-pill badge-neutral">{connections.length}</span>
                 </div>
 
-                {/* Networking tips card */}
-                <div className="connections-limitation-card card">
-                  <div className="card-body">
-                    <p className="font-semibold text-sm" style={{ marginBottom: 8 }}>
-                      💡 Networking Tips
-                    </p>
-                    <ul className="connections-limitation-list">
-                      <li>Connect with colleagues using their Member ID</li>
-                      <li>Engage with feed posts to increase your visibility</li>
-                      <li>Grow your network by exchanging IDs with peers</li>
-                    </ul>
+                {connections.length > 5 && (
+                  <input
+                    type="text"
+                    placeholder="Filter connections..."
+                    value={connectionsFilter}
+                    onChange={(e) => setConnectionsFilter(e.target.value)}
+                    className="connections-filter-input"
+                  />
+                )}
+              </div>
+
+              <div className="card-body">
+                {loading ? (
+                  <div>
+                    <SkeletonConnectionCard />
+                    <SkeletonConnectionCard />
                   </div>
+                ) : connections.length === 0 ? (
+                  <EmptyState
+                    icon={Users}
+                    title="No connections yet"
+                    description="Search for professionals above or in the search bar to start growing your network."
+                  />
+                ) : (
+                  <div className="connections-grid-list">
+                    {filteredConnections.map((conn) => {
+                      const connId = conn.userId || conn.id;
+                      return (
+                        <div key={connId} className="connected-person-card">
+                          <Avatar name={conn.name} userId={connId} size="md" />
+                          <div className="connected-person-info">
+                            <span className="connected-person-name">{conn.name || `User #${connId}`}</span>
+                            <span className="connected-person-status">1st degree connection</span>
+                          </div>
+                          <span className="badge-pill badge-success">
+                            <Check size={12} /> Connected
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Sidebar Right Column */}
+          <div className="connections-sidebar-col">
+            {/* Sent Pending Requests Summary */}
+            <div className="card sent-requests-card">
+              <div className="card-header">
+                <div className="flex items-center gap-2">
+                  <Clock size={16} className="text-muted" />
+                  <span className="font-semibold text-sm">Sent Requests ({sentRequests.length})</span>
+                </div>
+              </div>
+              <div className="card-body">
+                {sentRequests.length === 0 ? (
+                  <p className="text-xs text-muted">No pending outgoing requests.</p>
+                ) : (
+                  <div className="sent-requests-list">
+                    {sentRequests.map((req) => {
+                      const reqId = req.userId || req.id;
+                      return (
+                        <div key={reqId} className="sent-request-item">
+                          <Avatar name={req.name} userId={reqId} size="xs" />
+                          <div className="sent-request-info">
+                            <span className="sent-request-name">{req.name || `User #${reqId}`}</span>
+                            <span className="sent-request-status">Pending response</span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Network stats card */}
+            <div className="card network-info-card">
+              <div className="card-header">
+                <span className="font-semibold text-sm">Manage Network</span>
+              </div>
+              <div className="card-body network-info-body">
+                <div className="network-stat-row">
+                  <span className="text-sm text-muted">Connections</span>
+                  <span className="font-bold text-sm">{connections.length}</span>
+                </div>
+                <div className="network-stat-row">
+                  <span className="text-sm text-muted">Received Invitations</span>
+                  <span className="font-bold text-sm text-primary">{invitations.length}</span>
+                </div>
+                <div className="network-stat-row">
+                  <span className="text-sm text-muted">Pending Sent</span>
+                  <span className="font-bold text-sm">{sentRequests.length}</span>
                 </div>
               </div>
             </div>
           </div>
         </div>
-      </div>
-    </>
+      </main>
+    </div>
   );
 }

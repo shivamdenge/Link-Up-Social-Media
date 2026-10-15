@@ -7,4 +7,4 @@ spring:
       value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
       properties:
         "[spring.json.trusted.packages]": "com.shivamdenge.*"
-        "[spring.json.type.mapping]": "com.shivamdenge.userservice.event.UserCreatedEvent:com.shivamdenge.notificationservice.event.UserCreatedEvent,com.shivamdenge.postsservice.event.PostCreated:com.shivamdenge.notificationservice.event.PostCreated,com.shivamdenge.postsservice.event.PostLiked:com.shivamdenge.notificationservice.event.PostLiked"
+        "[spring.json.type.mapping]": "com.shivamdenge.userservice.event.UserCreatedEvent:com.shivamdenge.notificationservice.event.UserCreatedEvent,com.shivamdenge.postsservice.event.PostCreated:com.shivamdenge.notificationservice.event.PostCreated,com.shivamdenge.postsservice.event.PostLiked:com.shivamdenge.notificationservice.event.PostLiked,com.shivamdenge.connectionsservice.event.ConnectionRequestEvent:com.shivamdenge.notificationservice.event.ConnectionRequestEvent"

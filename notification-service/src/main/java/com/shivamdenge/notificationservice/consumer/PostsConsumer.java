@@ -57,6 +57,23 @@ public class PostsConsumer {
                 .build();
         notificationService.addNotification(notification);
     }
+
+    @KafkaListener(topics = "send_connection_request_topic")
+    public void handleConnectionRequest(com.shivamdenge.notificationservice.event.ConnectionRequestEvent connectionRequestEvent) {
+        log.info("handleConnectionRequest: {}", connectionRequestEvent);
+
+        String senderName = connectionRequestEvent.getSenderName() != null && !connectionRequestEvent.getSenderName().isBlank()
+                ? connectionRequestEvent.getSenderName()
+                : "Someone";
+
+        String message = String.format("%s wants to connect with you.", senderName);
+
+        Notification notification = Notification.builder()
+                .message(message)
+                .userId(connectionRequestEvent.getReceiverId())
+                .build();
+        notificationService.addNotification(notification);
+    }
 }
 
 

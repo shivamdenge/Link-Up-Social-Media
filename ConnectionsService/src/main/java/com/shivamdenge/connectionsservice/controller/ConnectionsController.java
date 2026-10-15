@@ -20,6 +20,30 @@ public class ConnectionsController {
         return ResponseEntity.ok(personList);
     }
 
+    @GetMapping("/requests/received")
+    public ResponseEntity<List<Person>> getReceivedConnectionRequests() {
+        List<Person> requests = connectionsService.getReceivedConnectionRequests();
+        return ResponseEntity.ok(requests);
+    }
+
+    @GetMapping("/requests/sent")
+    public ResponseEntity<List<Person>> getSentConnectionRequests() {
+        List<Person> requests = connectionsService.getSentConnectionRequests();
+        return ResponseEntity.ok(requests);
+    }
+
+    @GetMapping("/status/{userId}")
+    public ResponseEntity<java.util.Map<String, String>> getConnectionStatus(@PathVariable Long userId) {
+        String status = connectionsService.getConnectionStatus(userId);
+        return ResponseEntity.ok(java.util.Map.of("status", status));
+    }
+
+    @PostMapping("/status/batch")
+    public ResponseEntity<java.util.Map<Long, String>> getBatchConnectionStatus(@RequestBody List<Long> userIds) {
+        java.util.Map<Long, String> statusMap = connectionsService.getBatchConnectionStatus(userIds);
+        return ResponseEntity.ok(statusMap);
+    }
+
     @PostMapping("/request/{userId}")
     public ResponseEntity<Void> sendConnectionRequest(@PathVariable Long userId) {
         connectionsService.sendConnectionRequest(userId);
