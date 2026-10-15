@@ -14,6 +14,7 @@ spec:
       containers:
       - name: connections-service
         image: shivamdenge/linkup-connections-service
+        imagePullPolicy: Always
         resources:
           limits:
             memory: "650Mi"

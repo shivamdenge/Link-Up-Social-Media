@@ -14,6 +14,7 @@ spec:
       containers:
       - name: api-gateway
         image: shivamdenge/linkup-api-gateway
+        imagePullPolicy: Always
         resources:
           limits:
             memory: "600Mi"

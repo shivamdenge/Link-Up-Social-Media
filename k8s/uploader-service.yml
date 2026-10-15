@@ -14,6 +14,7 @@ spec:
       containers:
       - name: uploader-service
         image: shivamdenge/linkup-uploader-service
+        imagePullPolicy: Always
         resources:
           limits:
             memory: "650Mi"
