@@ -22,6 +22,7 @@ export function getUserFromToken(token) {
   return {
     id: parseInt(payload.sub, 10),
     email: payload.email,
+    name: payload.name || payload.email?.split('@')[0] || 'User',
   };
 }
 

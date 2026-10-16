@@ -1,5 +1,5 @@
 import './FeedPage.css';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { postApi } from '../../api/postApi';
 import { connectionApi } from '../../api/connectionApi';
@@ -44,7 +44,9 @@ export function FeedPage() {
   }, {});
   if (user) nameMap[user.id] = user.name;
 
-  const loadFeed = useCallback(async (currentConnections) => {
+  const connectionsRef = useRef([]);
+
+  const loadFeed = useCallback(async (explicitConns) => {
     if (!user?.id) return;
     setLoadingPosts(true);
     setError(null);
@@ -64,12 +66,13 @@ export function FeedPage() {
         console.warn('Backend /feed route unavailable, using connection aggregation fallback:', err);
       }
 
-      // 2. If backend feed returned empty or failed, aggregate posts from current user + all connections
+      // 2. Fallback: aggregate posts from current user + connections
       if (!backendFeedSuccess) {
-        let connsToQuery = currentConnections || connections;
+        let connsToQuery = Array.isArray(explicitConns) ? explicitConns : connectionsRef.current;
         if (!connsToQuery || connsToQuery.length === 0) {
           try {
             connsToQuery = await connectionApi.getConnections(user.id);
+            connectionsRef.current = connsToQuery || [];
             setConnections(connsToQuery || []);
           } catch {
             connsToQuery = [];
@@ -83,7 +86,7 @@ export function FeedPage() {
         if (Array.isArray(connsToQuery)) {
           connsToQuery.forEach((conn) => {
             const targetId = conn.userId || conn.id;
-            if (targetId && targetId !== user.id) {
+            if (targetId && String(targetId) !== String(user.id)) {
               postPromises.push(postApi.getPostsByUser(targetId).catch(() => []));
             }
           });
@@ -116,25 +119,31 @@ export function FeedPage() {
     } finally {
       setLoadingPosts(false);
     }
-  }, [user?.id, connections]);
+  }, [user?.id]); // ONLY user?.id in deps!
 
   useEffect(() => {
+    let isCancelled = false;
     async function init() {
+      if (!user?.id) return;
+      setLoadingConnections(true);
       let loadedConns = [];
-      if (user?.id) {
-        setLoadingConnections(true);
-        try {
-          loadedConns = await connectionApi.getConnections(user.id);
+      try {
+        loadedConns = await connectionApi.getConnections(user.id);
+        if (!isCancelled) {
+          connectionsRef.current = loadedConns || [];
           setConnections(loadedConns || []);
-        } catch {
-          // Fail silently
-        } finally {
-          setLoadingConnections(false);
         }
+      } catch {
+        // Fail silently
+      } finally {
+        if (!isCancelled) setLoadingConnections(false);
       }
-      loadFeed(loadedConns);
+      if (!isCancelled) {
+        loadFeed(loadedConns);
+      }
     }
     init();
+    return () => { isCancelled = true; };
   }, [user?.id, loadFeed]);
 
   function handlePostCreated(newPost) {
@@ -175,7 +184,7 @@ export function FeedPage() {
                   <span className="feed-sort-label">Sort by: <strong>Recent</strong></span>
                   <button
                     className="btn btn-ghost btn-icon btn-sm feed-refresh-btn"
-                    onClick={loadFeed}
+                    onClick={() => loadFeed()}
                     aria-label="Refresh feed"
                     id="refresh-feed-btn"
                     title="Refresh feed"
@@ -189,7 +198,7 @@ export function FeedPage() {
               {error ? (
                 <div className="card" style={{ padding: 24, textAlign: 'center' }}>
                   <p style={{ color: 'var(--color-danger)', marginBottom: 12 }}>{error}</p>
-                  <button className="btn btn-outline-primary" onClick={loadFeed}>
+                  <button className="btn btn-outline-primary" onClick={() => loadFeed()}>
                     Try Again
                   </button>
                 </div>

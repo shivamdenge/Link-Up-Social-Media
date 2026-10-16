@@ -166,11 +166,11 @@ export function ConnectionsPage() {
 
   // Send Connection Request
   async function handleSendConnect(targetUser) {
-    const targetId = targetUser.userId || targetUser.id;
-    if (targetId === user?.id) {
+    if (isSelf(targetUser)) {
       toast.error("You can't connect with yourself");
       return;
     }
+    const targetId = targetUser.userId || targetUser.id;
 
     setProcessingId(targetId);
     try {
@@ -192,6 +192,38 @@ export function ConnectionsPage() {
     setDismissedIds((prev) => new Set([...prev, personId]));
   }
 
+  // Helper to detect if a profile represents current user or current user's alternate test account
+  const normalize = (str) => (str || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+  const myNameNorm = normalize(user?.name);
+  const myEmailNorm = normalize(user?.email);
+  const myEmailPrefix = normalize((user?.email || '').split('@')[0]);
+
+  const isSelf = (u) => {
+    if (!u) return false;
+    const uidStr = String(u.userId || u.id);
+    const myIdStr = String(user?.id);
+    if (user?.id && uidStr === myIdStr) return true;
+
+    const uEmailNorm = normalize(u.email);
+    if (myEmailNorm && uEmailNorm && myEmailNorm === uEmailNorm) return true;
+
+    const uEmailPrefix = normalize((u.email || '').split('@')[0]);
+    if (myEmailPrefix && uEmailPrefix) {
+      if (myEmailPrefix === uEmailPrefix) return true;
+      if (myEmailPrefix.replace(/s/g, '') === uEmailPrefix.replace(/s/g, '')) return true;
+    }
+
+    const uNameNorm = normalize(u.name);
+    if (myNameNorm && uNameNorm) {
+      if (myNameNorm === uNameNorm) return true;
+      if (myNameNorm.length >= 4 && uNameNorm.length >= 4) {
+        if (myNameNorm.includes(uNameNorm) || uNameNorm.includes(myNameNorm)) return true;
+      }
+    }
+
+    return false;
+  };
+
   // Filter existing connections
   const filteredConnections = connections.filter((c) =>
     (c.name || '').toLowerCase().includes(connectionsFilter.toLowerCase())
@@ -203,9 +235,8 @@ export function ConnectionsPage() {
   const pendingReceivedIdSet = new Set(invitations.map((i) => String(i.userId || i.id)));
 
   const visibleEligibleUsers = eligibleUsers.filter((u) => {
+    if (isSelf(u)) return false;
     const uidStr = String(u.id);
-    const myIdStr = String(user?.id);
-    if (uidStr === myIdStr) return false;
     if (dismissedIds.has(u.id) || dismissedIds.has(uidStr)) return false;
     if (connectedIdSet.has(uidStr)) return false;
     if (pendingSentIdSet.has(uidStr)) return false;
@@ -354,7 +385,7 @@ export function ConnectionsPage() {
                   ) : (
                     <div className="people-results-grid">
                       {visibleEligibleUsers.map((person) => {
-                        const isMe = person.id === user?.id;
+                        const isMe = isSelf(person);
                         const status = userStatuses[person.id] || (isMe ? 'SELF' : 'NOT_CONNECTED');
                         const isProcessing = processingId === person.id;
 
@@ -477,7 +508,7 @@ export function ConnectionsPage() {
                   ) : searchResults.length > 0 ? (
                     <div className="people-results-grid" style={{ marginTop: '16px' }}>
                       {searchResults.map((person) => {
-                        const isMe = person.id === user?.id;
+                        const isMe = isSelf(person);
                         const status = userStatuses[person.id] || (isMe ? 'SELF' : 'NOT_CONNECTED');
                         const isProcessing = processingId === person.id;
 
