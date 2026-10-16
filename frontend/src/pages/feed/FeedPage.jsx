@@ -47,40 +47,14 @@ export function FeedPage() {
     setError(null);
 
     try {
-      // Fetch own posts
-      const ownPosts = await postApi.getPostsByUser(user.id);
-
-      // Fetch connections
-      let conns = [];
+      // Use consolidated feed API from backend, fallback to user posts
+      let feedPosts = [];
       try {
-        conns = await connectionApi.getConnections(user.id);
-        setConnections(conns);
+        feedPosts = await postApi.getFeed();
       } catch {
-        // Connections may fail without crashing feed
+        feedPosts = await postApi.getPostsByUser(user.id);
       }
-
-      // Fetch posts from connections (limit to 5 to avoid request flood)
-      const connectionPosts = await Promise.allSettled(
-        conns.slice(0, 5).map((p) => postApi.getPostsByUser(p.userId))
-      );
-
-      const allPosts = [
-        ...ownPosts,
-        ...connectionPosts
-          .filter((r) => r.status === 'fulfilled')
-          .flatMap((r) => r.value),
-      ];
-
-      // Deduplicate by post id and sort by createdAt desc
-      const seen = new Set();
-      const unique = allPosts.filter((p) => {
-        if (seen.has(p.id)) return false;
-        seen.add(p.id);
-        return true;
-      });
-
-      unique.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-      setPosts(unique);
+      setPosts(feedPosts || []);
     } catch (err) {
       setError(getErrorMessage(err));
     } finally {
@@ -108,6 +82,17 @@ export function FeedPage() {
 
   function handlePostCreated(newPost) {
     setPosts((prev) => [newPost, ...prev]);
+  }
+
+  async function handleDeletePost(postId) {
+    if (!window.confirm('Are you sure you want to delete this post?')) return;
+    try {
+      await postApi.deletePost(postId);
+      toast.success('Post deleted successfully');
+      setPosts((prev) => prev.filter((p) => p.id !== postId));
+    } catch (err) {
+      toast.error(getErrorMessage(err));
+    }
   }
 
   return (
@@ -170,12 +155,14 @@ export function FeedPage() {
                   <PostCard
                     key={post.id}
                     post={post}
-                    authorName={nameMap[post.userId]}
+                    authorName={nameMap[post.userId] || (post.userId === user?.id ? user?.name : `User #${post.userId}`)}
                     isOwnPost={post.userId === user?.id}
+                    onDelete={handleDeletePost}
                   />
                 ))
               )}
             </main>
+
 
             {/* Right Sidebar */}
             <aside className="right-sidebar sticky-top">

@@ -4,6 +4,8 @@ import { Toaster } from 'react-hot-toast';
 import { AuthProvider } from './context/AuthContext';
 import { ProtectedRoute, PublicRoute } from './components/routes/RouteGuards';
 
+import { ErrorBoundary } from './components/common/ErrorBoundary';
+
 // Pages
 import { LoginPage } from './pages/auth/LoginPage';
 import { SignupPage } from './pages/auth/SignupPage';
@@ -13,8 +15,10 @@ import { ConnectionsPage } from './pages/connections/ConnectionsPage';
 
 function App() {
   return (
-    <AuthProvider>
-      <BrowserRouter>
+    <ErrorBoundary>
+      <AuthProvider>
+        <BrowserRouter>
+
         {/* Global toast notifications */}
         <Toaster
           position="top-center"
@@ -88,6 +92,7 @@ function App() {
         </Routes>
       </BrowserRouter>
     </AuthProvider>
+    </ErrorBoundary>
   );
 }
 

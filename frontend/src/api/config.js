@@ -9,14 +9,18 @@ export const API_ENDPOINTS = {
   LOGIN: `${API_BASE_URL}/api/v1/users/auth/login`,
 
   // Users Service
-  SEARCH_USERS: (query) => `${API_BASE_URL}/api/v1/users/core/search?query=${encodeURIComponent(query)}`,
+  SEARCH_USERS: (query) => query ? `${API_BASE_URL}/api/v1/users/core/search?query=${encodeURIComponent(query)}` : `${API_BASE_URL}/api/v1/users/core/search`,
+  GET_ELIGIBLE_USERS: `${API_BASE_URL}/api/v1/users/core/eligible`,
   GET_USER: (userId) => `${API_BASE_URL}/api/v1/users/core/${userId}`,
+  UPLOAD_PROFILE_PHOTO: `${API_BASE_URL}/api/v1/users/core/profile-photo`,
 
   // Posts Service
   POSTS_BASE: `${API_BASE_URL}/api/v1/posts`,
   CREATE_POST: `${API_BASE_URL}/api/v1/posts/core`,
+  GET_FEED: `${API_BASE_URL}/api/v1/posts/core/feed`,
   GET_POST: (postId) => `${API_BASE_URL}/api/v1/posts/core/${postId}`,
   GET_USER_POSTS: (userId) => `${API_BASE_URL}/api/v1/posts/core/users/${userId}/allPosts`,
+  DELETE_POST: (postId) => `${API_BASE_URL}/api/v1/posts/core/${postId}`,
   LIKE_POST: (postId) => `${API_BASE_URL}/api/v1/posts/likes/${postId}`,
   UNLIKE_POST: (postId) => `${API_BASE_URL}/api/v1/posts/likes/${postId}`,
 
@@ -32,6 +36,9 @@ export const API_ENDPOINTS = {
 
   // Notification Service
   GET_NOTIFICATIONS: `${API_BASE_URL}/api/v1/notifications/core`,
+  GET_UNREAD_NOTIFICATION_COUNT: `${API_BASE_URL}/api/v1/notifications/core/unread-count`,
+  MARK_NOTIFICATION_READ: (id) => `${API_BASE_URL}/api/v1/notifications/core/${id}/read`,
+  MARK_ALL_NOTIFICATIONS_READ: `${API_BASE_URL}/api/v1/notifications/core/read-all`,
 };
 
 export default API_BASE_URL;

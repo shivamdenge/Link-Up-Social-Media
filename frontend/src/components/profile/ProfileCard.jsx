@@ -24,9 +24,10 @@ export function ProfileCard({ connectionCount }) {
       {/* Avatar overlay */}
       <div className="profile-card-avatar-wrapper">
         <Link to="/profile" aria-label="View your profile">
-          <Avatar name={user?.name} userId={user?.id} size="lg" className="profile-card-avatar" />
+          <Avatar name={user?.name} userId={user?.id} imageUrl={user?.profileImageUrl} size="lg" className="profile-card-avatar" />
         </Link>
       </div>
+
 
       {/* User info */}
       <div className="profile-card-body">

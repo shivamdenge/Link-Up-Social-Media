@@ -46,10 +46,34 @@ class UserServiceTest {
     }
 
     @Test
-    void testSearchUsers_EmptyQueryReturnsEmptyList() {
+    void testSearchUsers_EmptyQueryReturnsFallbackUsers() {
+        User user1 = new User();
+        user1.setId(1L);
+        user1.setName("John Doe");
+
+        when(userRepository.findAll()).thenReturn(List.of(user1));
+
         List<UserDto> results = userService.searchUsers("   ");
-        assertTrue(results.isEmpty());
-        verifyNoInteractions(userRepository);
+        assertEquals(1, results.size());
+        assertEquals("John Doe", results.get(0).getName());
+        verify(userRepository).findAll();
+    }
+
+    @Test
+    void testGetEligibleUsers_Success() {
+        User user1 = new User();
+        user1.setId(1L);
+        user1.setName("Alice");
+
+        User user2 = new User();
+        user2.setId(2L);
+        user2.setName("Bob");
+
+        when(userRepository.findAll()).thenReturn(List.of(user1, user2));
+
+        List<UserDto> eligible = userService.getEligibleUsers(1L);
+        assertEquals(1, eligible.size());
+        assertEquals("Bob", eligible.get(0).getName());
     }
 
     @Test

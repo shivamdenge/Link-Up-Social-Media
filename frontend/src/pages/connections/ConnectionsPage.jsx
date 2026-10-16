@@ -10,7 +10,7 @@ import { SkeletonConnectionCard } from '../../components/ui/Skeleton';
 import { getErrorMessage } from '../../utils/helpers';
 import toast from 'react-hot-toast';
 import {
-  Users, UserPlus, RefreshCw, Check, X, Clock, Search, ShieldCheck
+  Users, UserPlus, RefreshCw, Check, X, Clock, Search, ShieldCheck, Sparkles
 } from 'lucide-react';
 
 export function ConnectionsPage() {
@@ -20,6 +20,9 @@ export function ConnectionsPage() {
   const [connections, setConnections] = useState([]);
   const [invitations, setInvitations] = useState([]);
   const [sentRequests, setSentRequests] = useState([]);
+  const [eligibleUsers, setEligibleUsers] = useState([]);
+  const [userStatuses, setUserStatuses] = useState({});
+  const [dismissedIds, setDismissedIds] = useState(new Set());
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -27,7 +30,6 @@ export function ConnectionsPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState([]);
   const [searchLoading, setSearchLoading] = useState(false);
-  const [searchStatuses, setSearchStatuses] = useState({});
 
   // Action loading state (per user ID)
   const [processingId, setProcessingId] = useState(null);
@@ -37,24 +39,41 @@ export function ConnectionsPage() {
 
   const searchDebounceRef = useRef(null);
 
-  // Load invitations, sent requests, and connections
+  // Load invitations, sent requests, connections, and eligible discovery users
   const loadNetworkData = useCallback(async () => {
-    if (!user?.id) return;
+    if (!user?.id) {
+      setLoading(false);
+      setRefreshing(false);
+      return;
+    }
+
     try {
-      const [connectionsData, receivedData, sentData] = await Promise.allSettled([
+      const [connectionsData, receivedData, sentData, eligibleData] = await Promise.allSettled([
         connectionApi.getConnections(user.id),
         connectionApi.getReceivedRequests(),
         connectionApi.getSentRequests(),
+        userApi.getEligibleUsers(),
       ]);
 
-      if (connectionsData.status === 'fulfilled') {
-        setConnections(connectionsData.value || []);
-      }
-      if (receivedData.status === 'fulfilled') {
-        setInvitations(receivedData.value || []);
-      }
-      if (sentData.status === 'fulfilled') {
-        setSentRequests(sentData.value || []);
+      const loadedConns = connectionsData.status === 'fulfilled' ? (connectionsData.value || []) : [];
+      const loadedInvs = receivedData.status === 'fulfilled' ? (receivedData.value || []) : [];
+      const loadedSent = sentData.status === 'fulfilled' ? (sentData.value || []) : [];
+      const loadedEligible = eligibleData.status === 'fulfilled' ? (eligibleData.value || []) : [];
+
+      setConnections(loadedConns);
+      setInvitations(loadedInvs);
+      setSentRequests(loadedSent);
+      setEligibleUsers(loadedEligible);
+
+      // Collect user IDs to query batch connection status
+      const allTargetIds = loadedEligible.map((u) => u.id).filter((id) => id && id !== user.id);
+      if (allTargetIds.length > 0) {
+        try {
+          const statusMap = await connectionApi.getBatchStatus(allTargetIds);
+          setUserStatuses((prev) => ({ ...prev, ...statusMap }));
+        } catch {
+          // Status query fallback
+        }
       }
     } catch (err) {
       toast.error('Failed to load network data: ' + getErrorMessage(err));
@@ -91,12 +110,14 @@ export function ConnectionsPage() {
     searchDebounceRef.current = setTimeout(async () => {
       try {
         const users = await userApi.searchUsers(query.trim());
-        setSearchResults(users);
+        setSearchResults(users || []);
 
-        if (users.length > 0 && user?.id) {
-          const ids = users.map((u) => u.id);
-          const statusMap = await connectionApi.getBatchStatus(ids);
-          setSearchStatuses((prev) => ({ ...prev, ...statusMap }));
+        if (users && users.length > 0 && user?.id) {
+          const ids = users.map((u) => u.id).filter((id) => id && id !== user.id);
+          if (ids.length > 0) {
+            const statusMap = await connectionApi.getBatchStatus(ids);
+            setUserStatuses((prev) => ({ ...prev, ...statusMap }));
+          }
         }
       } catch (err) {
         toast.error('Search failed: ' + getErrorMessage(err));
@@ -116,8 +137,8 @@ export function ConnectionsPage() {
 
       // Optimistic update
       setInvitations((prev) => prev.filter((inv) => (inv.userId || inv.id) !== senderId));
-      setConnections((prev) => [...prev, { userId: senderId, name: sender.name }]);
-      setSearchStatuses((prev) => ({ ...prev, [senderId]: 'CONNECTED' }));
+      setConnections((prev) => [...prev, { userId: senderId, name: sender.name, profileImageUrl: sender.profileImageUrl }]);
+      setUserStatuses((prev) => ({ ...prev, [senderId]: 'CONNECTED' }));
     } catch (err) {
       toast.error(getErrorMessage(err));
     } finally {
@@ -135,7 +156,7 @@ export function ConnectionsPage() {
 
       // Optimistic update
       setInvitations((prev) => prev.filter((inv) => (inv.userId || inv.id) !== senderId));
-      setSearchStatuses((prev) => ({ ...prev, [senderId]: 'NOT_CONNECTED' }));
+      setUserStatuses((prev) => ({ ...prev, [senderId]: 'NOT_CONNECTED' }));
     } catch (err) {
       toast.error(getErrorMessage(err));
     } finally {
@@ -157,8 +178,8 @@ export function ConnectionsPage() {
       toast.success(`Connection request sent to ${targetUser.name}!`);
 
       // Optimistic update
-      setSearchStatuses((prev) => ({ ...prev, [targetId]: 'PENDING_SENT' }));
-      setSentRequests((prev) => [...prev, { userId: targetId, name: targetUser.name }]);
+      setUserStatuses((prev) => ({ ...prev, [targetId]: 'PENDING_SENT' }));
+      setSentRequests((prev) => [...prev, { userId: targetId, name: targetUser.name, profileImageUrl: targetUser.profileImageUrl }]);
     } catch (err) {
       toast.error(getErrorMessage(err));
     } finally {
@@ -166,9 +187,19 @@ export function ConnectionsPage() {
     }
   }
 
+  // Dismiss card from suggested network
+  function handleDismiss(personId) {
+    setDismissedIds((prev) => new Set([...prev, personId]));
+  }
+
   // Filter existing connections
   const filteredConnections = connections.filter((c) =>
     (c.name || '').toLowerCase().includes(connectionsFilter.toLowerCase())
+  );
+
+  // Discoverable people (excluding dismissed and self)
+  const visibleEligibleUsers = eligibleUsers.filter(
+    (u) => u.id !== user?.id && !dismissedIds.has(u.id)
   );
 
   return (
@@ -198,31 +229,16 @@ export function ConnectionsPage() {
           {/* Main Left Column */}
           <div className="connections-main-col">
             {/* 1. INVITATIONS CARD (Received requests) */}
-            <div className="card invitations-card">
-              <div className="card-header invitations-header">
-                <div className="invitations-header-title">
-                  <UserPlus size={18} className="text-primary" />
-                  <span className="font-bold">Invitations</span>
-                  {invitations.length > 0 && (
+            {invitations.length > 0 && (
+              <div className="card invitations-card animate-fade-in">
+                <div className="card-header invitations-header">
+                  <div className="invitations-header-title">
+                    <UserPlus size={18} className="text-primary" />
+                    <span className="font-bold">Invitations</span>
                     <span className="invitations-badge">{invitations.length}</span>
-                  )}
+                  </div>
                 </div>
-              </div>
 
-              {loading ? (
-                <div className="card-body">
-                  <SkeletonConnectionCard />
-                  <SkeletonConnectionCard />
-                </div>
-              ) : invitations.length === 0 ? (
-                <div className="invitations-empty">
-                  <ShieldCheck size={28} className="text-muted" />
-                  <p className="text-sm font-medium">No pending invitations</p>
-                  <p className="text-xs text-muted">
-                    When someone wants to connect with you, their request will appear here.
-                  </p>
-                </div>
-              ) : (
                 <div className="invitations-list">
                   {invitations.map((inv) => {
                     const invId = inv.userId || inv.id;
@@ -230,7 +246,7 @@ export function ConnectionsPage() {
                     return (
                       <div key={invId} className="invitation-item">
                         <div className="invitation-user">
-                          <Avatar name={inv.name} userId={invId} size="md" />
+                          <Avatar name={inv.name} userId={invId} imageUrl={inv.profileImageUrl} size="md" />
                           <div className="invitation-info">
                             <h3 className="invitation-name">{inv.name || `User #${invId}`}</h3>
                             <p className="invitation-subtitle">wants to connect with you</p>
@@ -261,15 +277,119 @@ export function ConnectionsPage() {
                     );
                   })}
                 </div>
-              )}
+              </div>
+            )}
+
+            {/* 2. PEOPLE YOU MAY KNOW (LinkedIn-Style Card Grid) */}
+            <div className="card people-you-may-know-card animate-fade-in">
+              <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div className="flex items-center gap-2">
+                  <Sparkles size={18} className="text-primary" />
+                  <span className="font-bold">People You May Know</span>
+                </div>
+                <span className="text-xs text-muted">
+                  {visibleEligibleUsers.length} suggested
+                </span>
+              </div>
+
+              <div className="card-body">
+                {loading ? (
+                  <div className="people-results-grid">
+                    <SkeletonConnectionCard />
+                    <SkeletonConnectionCard />
+                    <SkeletonConnectionCard />
+                    <SkeletonConnectionCard />
+                  </div>
+                ) : visibleEligibleUsers.length === 0 ? (
+                  <EmptyState
+                    icon={<Users size={32} />}
+                    title="No suggestions right now"
+                    description="Check back later or search for professionals by name below."
+                  />
+                ) : (
+                  <div className="people-results-grid">
+                    {visibleEligibleUsers.map((person) => {
+                      const isMe = person.id === user?.id;
+                      const status = userStatuses[person.id] || (isMe ? 'SELF' : 'NOT_CONNECTED');
+                      const isProcessing = processingId === person.id;
+
+                      return (
+                        <div key={person.id} className="person-result-card">
+                          {/* Dismiss button */}
+                          <button
+                            className="person-card-dismiss-btn"
+                            onClick={() => handleDismiss(person.id)}
+                            title="Dismiss suggestion"
+                            aria-label={`Dismiss ${person.name}`}
+                          >
+                            <X size={14} />
+                          </button>
+
+                          <div className="person-result-top">
+                            <Avatar
+                              name={person.name}
+                              userId={person.id}
+                              imageUrl={person.profileImageUrl}
+                              size="lg"
+                            />
+                            <h4 className="person-result-name">{person.name}</h4>
+                            <p className="person-result-email">{person.email}</p>
+                            <span className="person-result-tagline">LinkUp Member</span>
+                          </div>
+
+                          <div className="person-result-action">
+                            {isMe ? (
+                              <span className="badge-pill badge-neutral">You</span>
+                            ) : status === 'CONNECTED' ? (
+                              <span className="badge-pill badge-success">
+                                <Check size={13} /> Connected
+                              </span>
+                            ) : status === 'PENDING_SENT' ? (
+                              <span className="badge-pill badge-warning">
+                                <Clock size={13} /> Request Sent
+                              </span>
+                            ) : status === 'PENDING_RECEIVED' ? (
+                              <div className="person-result-btn-group">
+                                <button
+                                  className="btn btn-primary btn-xs"
+                                  onClick={() => handleAccept(person)}
+                                  disabled={isProcessing}
+                                >
+                                  Accept
+                                </button>
+                                <button
+                                  className="btn btn-ghost btn-xs"
+                                  onClick={() => handleIgnore(person)}
+                                  disabled={isProcessing}
+                                >
+                                  Ignore
+                                </button>
+                              </div>
+                            ) : (
+                              <button
+                                className="btn btn-outline-primary btn-sm w-full connect-action-btn"
+                                onClick={() => handleSendConnect(person)}
+                                disabled={isProcessing}
+                              >
+                                <UserPlus size={14} />
+                                {isProcessing ? 'Sending...' : 'Connect'}
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
             </div>
 
-            {/* 2. FIND PEOPLE BY NAME (Search Section) */}
+            {/* 3. FIND PEOPLE BY NAME (Search Section) */}
             <div className="card search-people-card">
               <div className="card-header">
                 <div className="search-people-header">
                   <Search size={18} className="text-primary" />
-                  <span className="font-bold">Find People You May Know</span>
+                  <span className="font-bold">Search Professionals</span>
                 </div>
               </div>
 
@@ -303,16 +423,21 @@ export function ConnectionsPage() {
                     <span>Searching professionals...</span>
                   </div>
                 ) : searchResults.length > 0 ? (
-                  <div className="people-results-grid">
+                  <div className="people-results-grid" style={{ marginTop: '16px' }}>
                     {searchResults.map((person) => {
                       const isMe = person.id === user?.id;
-                      const status = searchStatuses[person.id] || (isMe ? 'SELF' : 'NOT_CONNECTED');
+                      const status = userStatuses[person.id] || (isMe ? 'SELF' : 'NOT_CONNECTED');
                       const isProcessing = processingId === person.id;
 
                       return (
                         <div key={person.id} className="person-result-card">
                           <div className="person-result-top">
-                            <Avatar name={person.name} userId={person.id} size="lg" />
+                            <Avatar
+                              name={person.name}
+                              userId={person.id}
+                              imageUrl={person.profileImageUrl}
+                              size="lg"
+                            />
                             <h4 className="person-result-name">{person.name}</h4>
                             <p className="person-result-email">{person.email}</p>
                           </div>
@@ -372,7 +497,7 @@ export function ConnectionsPage() {
               </div>
             </div>
 
-            {/* 3. MY CONNECTIONS (Existing Connections) */}
+            {/* 4. MY CONNECTIONS (Existing Connections) */}
             <div className="card connections-list-card">
               <div className="card-header connections-list-header">
                 <div className="flex items-center gap-2">
@@ -400,9 +525,9 @@ export function ConnectionsPage() {
                   </div>
                 ) : connections.length === 0 ? (
                   <EmptyState
-                    icon={Users}
+                    icon={<Users size={32} />}
                     title="No connections yet"
-                    description="Search for professionals above or in the search bar to start growing your network."
+                    description="Connect with professionals from the suggestions above to start growing your network."
                   />
                 ) : (
                   <div className="connections-grid-list">
@@ -410,7 +535,7 @@ export function ConnectionsPage() {
                       const connId = conn.userId || conn.id;
                       return (
                         <div key={connId} className="connected-person-card">
-                          <Avatar name={conn.name} userId={connId} size="md" />
+                          <Avatar name={conn.name} userId={connId} imageUrl={conn.profileImageUrl} size="md" />
                           <div className="connected-person-info">
                             <span className="connected-person-name">{conn.name || `User #${connId}`}</span>
                             <span className="connected-person-status">1st degree connection</span>
@@ -446,7 +571,7 @@ export function ConnectionsPage() {
                       const reqId = req.userId || req.id;
                       return (
                         <div key={reqId} className="sent-request-item">
-                          <Avatar name={req.name} userId={reqId} size="xs" />
+                          <Avatar name={req.name} userId={reqId} imageUrl={req.profileImageUrl} size="xs" />
                           <div className="sent-request-info">
                             <span className="sent-request-name">{req.name || `User #${reqId}`}</span>
                             <span className="sent-request-status">Pending response</span>

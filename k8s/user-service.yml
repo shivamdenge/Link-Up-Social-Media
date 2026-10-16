@@ -33,6 +33,8 @@ spec:
             value: user-db
           - name: DB_NAME
             value: userDB
+          - name: UPLOADER_SERVICE_URI
+            value: http://uploader-service:80
         ports:
         - containerPort: 9020
 

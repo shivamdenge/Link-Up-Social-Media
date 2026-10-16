@@ -71,6 +71,7 @@ public class PostsConsumer {
         Notification notification = Notification.builder()
                 .message(message)
                 .userId(connectionRequestEvent.getReceiverId())
+                .type("CONNECTION_REQUEST")
                 .build();
         notificationService.addNotification(notification);
     }

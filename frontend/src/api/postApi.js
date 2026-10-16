@@ -18,6 +18,14 @@ export const postApi = {
   },
 
   /**
+   * GET /api/v1/posts/core/feed
+   */
+  getFeed: async () => {
+    const response = await axiosInstance.get(API_ENDPOINTS.GET_FEED);
+    return response.data || [];
+  },
+
+  /**
    * GET /api/v1/posts/core/{postId}
    */
   getPostById: async (postId) => {
@@ -32,6 +40,15 @@ export const postApi = {
     const response = await axiosInstance.get(API_ENDPOINTS.GET_USER_POSTS(userId));
     return response.data;
   },
+
+  /**
+   * DELETE /api/v1/posts/core/{postId}
+   */
+  deletePost: async (postId) => {
+    const response = await axiosInstance.delete(API_ENDPOINTS.DELETE_POST(postId));
+    return response.data;
+  },
+
 
   /**
    * POST /api/v1/posts/likes/{postId}

@@ -30,6 +30,7 @@ export function Navbar() {
 
   // Notifications state
   const [notifications, setNotifications] = useState([]);
+  const [unreadCount, setUnreadCount] = useState(0);
   const [notificationsLoading, setNotificationsLoading] = useState(false);
 
   const dropdownRef = useRef(null);
@@ -37,12 +38,20 @@ export function Navbar() {
   const searchRef = useRef(null);
   const searchTimeoutRef = useRef(null);
 
-  // Fetch notifications
+  // Fetch notifications and unread count
   const loadNotifications = useCallback(async () => {
     if (!user?.id) return;
     try {
-      const data = await notificationApi.getNotifications();
-      setNotifications(data || []);
+      const [listResult, countResult] = await Promise.allSettled([
+        notificationApi.getNotifications(),
+        notificationApi.getUnreadCount(),
+      ]);
+      if (listResult.status === 'fulfilled') {
+        setNotifications(listResult.value || []);
+      }
+      if (countResult.status === 'fulfilled') {
+        setUnreadCount(countResult.value || 0);
+      }
     } catch {
       // ignore
     }
@@ -53,6 +62,36 @@ export function Navbar() {
     const interval = setInterval(loadNotifications, 30000); // 30s poll
     return () => clearInterval(interval);
   }, [loadNotifications]);
+
+  async function handleNotificationClick(notif) {
+    try {
+      if (!notif.isRead) {
+        await notificationApi.markAsRead(notif.id);
+        setNotifications((prev) =>
+          prev.map((n) => (n.id === notif.id ? { ...n, isRead: true } : n))
+        );
+        setUnreadCount((prev) => Math.max(0, prev - 1));
+      }
+    } catch {
+      // ignore
+    }
+    setNotificationsOpen(false);
+    if (notif.type === 'CONNECTION_REQUEST' || notif.message?.toLowerCase().includes('connect')) {
+      navigate('/connections');
+    }
+  }
+
+  async function handleMarkAllRead() {
+    try {
+      await notificationApi.markAllAsRead();
+      setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
+      setUnreadCount(0);
+      toast.success('Marked all as read');
+    } catch {
+      // ignore
+    }
+  }
+
 
   // Close dropdowns on outside click
   useEffect(() => {
@@ -195,7 +234,7 @@ export function Navbar() {
                       const status = statuses[person.id] || (isMe ? 'SELF' : 'NOT_CONNECTED');
                       return (
                         <div key={person.id} className="navbar-search-item">
-                          <Avatar name={person.name} userId={person.id} size="sm" />
+                          <Avatar name={person.name} userId={person.id} imageUrl={person.profileImageUrl} size="sm" />
                           <div className="navbar-search-info">
                             <span className="navbar-search-name">{person.name}</span>
                             <span className="navbar-search-email">{person.email}</span>
@@ -266,17 +305,23 @@ export function Navbar() {
               title="Notifications"
             >
               <Bell size={20} />
-              {notifications.length > 0 && (
-                <span className="navbar-badge">{notifications.length > 9 ? '9+' : notifications.length}</span>
+              {unreadCount > 0 && (
+                <span className="navbar-badge">{unreadCount > 9 ? '9+' : unreadCount}</span>
               )}
             </button>
 
             {notificationsOpen && (
               <div className="dropdown-menu navbar-notif-dropdown animate-slide-down">
-                <div className="navbar-notif-header">
+                <div className="navbar-notif-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <span className="font-semibold">Notifications</span>
-                  {notifications.length > 0 && (
-                    <span className="text-xs text-muted">{notifications.length} updates</span>
+                  {unreadCount > 0 && (
+                    <button
+                      className="btn btn-ghost btn-xs text-primary"
+                      onClick={handleMarkAllRead}
+                      style={{ fontSize: '11px', padding: '2px 6px' }}
+                    >
+                      Mark all read
+                    </button>
                   )}
                 </div>
                 <div className="navbar-notif-body">
@@ -284,12 +329,17 @@ export function Navbar() {
                     <div className="navbar-notif-empty">No notifications yet</div>
                   ) : (
                     notifications.map((notif) => (
-                      <div key={notif.id} className="navbar-notif-item">
+                      <div
+                        key={notif.id}
+                        className={`navbar-notif-item ${!notif.isRead ? 'unread' : ''}`}
+                        onClick={() => handleNotificationClick(notif)}
+                        style={{ cursor: 'pointer', background: !notif.isRead ? 'rgba(10, 102, 194, 0.08)' : 'transparent' }}
+                      >
                         <div className="navbar-notif-icon">
-                          <Bell size={14} />
+                          <Bell size={14} color={!notif.isRead ? 'var(--color-primary)' : 'currentColor'} />
                         </div>
                         <div className="navbar-notif-content">
-                          <p className="navbar-notif-msg">{notif.message}</p>
+                          <p className="navbar-notif-msg" style={{ fontWeight: !notif.isRead ? 600 : 400 }}>{notif.message}</p>
                           {notif.createdAt && (
                             <span className="navbar-notif-time">
                               {new Date(notif.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
@@ -312,7 +362,7 @@ export function Navbar() {
               aria-expanded={dropdownOpen}
               id="navbar-profile-btn"
             >
-              <Avatar name={user?.name} userId={user?.id} size="xs" />
+              <Avatar name={user?.name} userId={user?.id} imageUrl={user?.profileImageUrl} size="xs" />
               <span className="navbar-profile-name">{user?.name?.split(' ')[0] || 'Me'}</span>
               <ChevronDown size={14} className={`navbar-chevron ${dropdownOpen ? 'open' : ''}`} />
             </button>
@@ -320,7 +370,8 @@ export function Navbar() {
             {dropdownOpen && (
               <div className="dropdown-menu navbar-dropdown animate-slide-down" role="menu">
                 <div className="navbar-dropdown-profile">
-                  <Avatar name={user?.name} userId={user?.id} size="md" />
+                  <Avatar name={user?.name} userId={user?.id} imageUrl={user?.profileImageUrl} size="md" />
+
                   <div>
                     <p className="font-semibold" style={{ fontSize: '15px', color: 'var(--color-text)' }}>
                       {user?.name || 'User'}

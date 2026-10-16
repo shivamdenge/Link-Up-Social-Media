@@ -56,4 +56,36 @@ class NotificationServiceTest {
         assertTrue(result.isEmpty());
         verifyNoInteractions(notificationRepository);
     }
+
+    @Test
+    void testGetUnreadCount() {
+        when(notificationRepository.countByUserIdAndIsReadFalse(2L)).thenReturn(5L);
+
+        long count = notificationService.getUnreadCount(2L);
+        assertEquals(5L, count);
+
+        assertEquals(0L, notificationService.getUnreadCount(null));
+    }
+
+    @Test
+    void testMarkAsRead_MatchingUser() {
+        Notification notification = Notification.builder()
+                .id(10L)
+                .userId(2L)
+                .isRead(false)
+                .build();
+
+        when(notificationRepository.findById(10L)).thenReturn(java.util.Optional.of(notification));
+
+        notificationService.markAsRead(10L, 2L);
+
+        assertTrue(notification.getIsRead());
+        verify(notificationRepository).save(notification);
+    }
+
+    @Test
+    void testMarkAllAsRead() {
+        notificationService.markAllAsRead(2L);
+        verify(notificationRepository).markAllAsReadByUserId(2L);
+    }
 }

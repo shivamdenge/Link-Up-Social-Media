@@ -8,12 +8,13 @@ public class AuthContextHolder {
         return currentUserId.get();
     }
 
-    static void setCurrentUserId(Long userId){
+    public static void setCurrentUserId(Long userId){
         currentUserId.set(userId);
     }
-    static void clear(){
+    public static void clear(){
         currentUserId.remove();
     }
+
 
 
 }

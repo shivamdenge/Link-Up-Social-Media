@@ -21,10 +21,17 @@ public class PostController {
 
 
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public ResponseEntity<PostDto> createPost(@RequestPart("post") PostCreateRequestDto postCreateRequestDto,
-                                              @RequestPart("file") MultipartFile file) {
+    public ResponseEntity<PostDto> createPost(
+            @RequestPart("post") PostCreateRequestDto postCreateRequestDto,
+            @RequestPart(value = "file", required = false) MultipartFile file) {
         PostDto postDto = postService.createPost(postCreateRequestDto, file);
         return new ResponseEntity<>(postDto, HttpStatus.CREATED);
+    }
+
+    @GetMapping("/feed")
+    public ResponseEntity<List<PostDto>> getFeed(@RequestHeader(value = "X-User-Id", required = false) Long userId) {
+        List<PostDto> feed = postService.getFeed(userId);
+        return ResponseEntity.ok(feed);
     }
 
     @GetMapping("/{postId}")
@@ -38,4 +45,11 @@ public class PostController {
         List<PostDto> postDtoList = postService.getAllPostsOfUser(userId);
         return ResponseEntity.ok(postDtoList);
     }
+
+    @DeleteMapping("/{postId}")
+    public ResponseEntity<Void> deletePost(@PathVariable Long postId) {
+        postService.deletePost(postId);
+        return ResponseEntity.noContent().build();
+    }
 }
+

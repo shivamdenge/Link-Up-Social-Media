@@ -62,13 +62,9 @@ export function CreatePost({ onPostCreated }) {
     removeFile();
   }
 
-  async function handleSubmit() {
+    async function handleSubmit() {
     if (!content.trim()) {
       toast.error('Please write something to post');
-      return;
-    }
-    if (!file) {
-      toast.error('Please attach an image (required by the server)');
       return;
     }
 
@@ -85,14 +81,14 @@ export function CreatePost({ onPostCreated }) {
     }
   }
 
-  const canSubmit = content.trim().length > 0 && !!file && !loading;
+  const canSubmit = content.trim().length > 0 && !loading;
 
   return (
     <div className="create-post card animate-fade-in">
       {!expanded ? (
         /* Collapsed state */
         <div className="create-post-collapsed">
-          <Avatar name={user?.name} userId={user?.id} size="md" />
+          <Avatar name={user?.name} userId={user?.id} imageUrl={user?.profileImageUrl} size="md" />
           <button
             className="create-post-trigger"
             onClick={handleExpand}
@@ -106,7 +102,7 @@ export function CreatePost({ onPostCreated }) {
         /* Expanded state */
         <div className="create-post-expanded animate-slide-up">
           <div className="create-post-header">
-            <Avatar name={user?.name} userId={user?.id} size="md" />
+            <Avatar name={user?.name} userId={user?.id} imageUrl={user?.profileImageUrl} size="md" />
             <div>
               <p className="font-semibold" style={{ fontSize: '15px' }}>{user?.name}</p>
               <p className="text-xs text-muted">Share with your network</p>
@@ -145,13 +141,6 @@ export function CreatePost({ onPostCreated }) {
             </div>
           )}
 
-          {/* Image required notice */}
-          {!file && (
-            <div className="create-post-notice">
-              <Image size={14} />
-              <span>Image is required by the server</span>
-            </div>
-          )}
 
           <div className="divider" style={{ margin: '12px 0' }} />
 
