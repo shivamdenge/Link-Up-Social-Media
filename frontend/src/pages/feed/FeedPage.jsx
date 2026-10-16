@@ -1,5 +1,5 @@
 import './FeedPage.css';
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { postApi } from '../../api/postApi';
 import { connectionApi } from '../../api/connectionApi';
@@ -44,63 +44,57 @@ export function FeedPage() {
   }, {});
   if (user) nameMap[user.id] = user.name;
 
-  const connectionsRef = useRef([]);
+  const userId = user?.id;
 
-  const loadFeed = useCallback(async (explicitConns) => {
-    if (!user?.id) return;
+  const loadData = useCallback(async () => {
+    if (!userId) return;
     setLoadingPosts(true);
+    setLoadingConnections(true);
     setError(null);
 
     try {
-      let feedPosts = [];
-      let backendFeedSuccess = false;
+      // 1. Fetch user connections
+      let conns = [];
+      try {
+        const fetched = await connectionApi.getConnections(userId);
+        if (Array.isArray(fetched)) {
+          conns = fetched;
+        }
+      } catch (err) {
+        console.warn('Failed to load connections:', err);
+      }
+      setConnections(conns);
+      setLoadingConnections(false);
 
-      // 1. Try consolidated backend feed endpoint
+      // 2. Fetch posts (consolidated feed or aggregated)
+      let feedPosts = [];
       try {
         const res = await postApi.getFeed();
         if (Array.isArray(res) && res.length > 0) {
           feedPosts = res;
-          backendFeedSuccess = true;
         }
       } catch (err) {
-        console.warn('Backend /feed route unavailable, using connection aggregation fallback:', err);
+        console.warn('Backend /feed route unavailable, using aggregation fallback:', err);
       }
 
-      // 2. Fallback: aggregate posts from current user + connections
-      if (!backendFeedSuccess) {
-        let connsToQuery = Array.isArray(explicitConns) ? explicitConns : connectionsRef.current;
-        if (!connsToQuery || connsToQuery.length === 0) {
-          try {
-            connsToQuery = await connectionApi.getConnections(user.id);
-            connectionsRef.current = connsToQuery || [];
-            setConnections(connsToQuery || []);
-          } catch {
-            connsToQuery = [];
-          }
-        }
-
-        const postPromises = [
-          postApi.getPostsByUser(user.id).catch(() => [])
-        ];
-
-        if (Array.isArray(connsToQuery)) {
-          connsToQuery.forEach((conn) => {
-            const targetId = conn.userId || conn.id;
-            if (targetId && String(targetId) !== String(user.id)) {
-              postPromises.push(postApi.getPostsByUser(targetId).catch(() => []));
-            }
-          });
-        }
-
-        const settled = await Promise.allSettled(postPromises);
-        const allPosts = [];
-        settled.forEach((result) => {
-          if (result.status === 'fulfilled' && Array.isArray(result.value)) {
-            allPosts.push(...result.value);
+      if (feedPosts.length === 0) {
+        const targetIds = [userId];
+        conns.forEach((c) => {
+          const cid = c.userId || c.id;
+          if (cid && String(cid) !== String(userId)) {
+            targetIds.push(cid);
           }
         });
 
-        // Deduplicate by post id and sort by createdAt desc
+        const postPromises = targetIds.map((tid) => postApi.getPostsByUser(tid).catch(() => []));
+        const settled = await Promise.allSettled(postPromises);
+        const allPosts = [];
+        settled.forEach((r) => {
+          if (r.status === 'fulfilled' && Array.isArray(r.value)) {
+            allPosts.push(...r.value);
+          }
+        });
+
         const postMap = new Map();
         allPosts.forEach((p) => {
           if (p && p.id && !postMap.has(p.id)) {
@@ -118,33 +112,13 @@ export function FeedPage() {
       setError(getErrorMessage(err));
     } finally {
       setLoadingPosts(false);
+      setLoadingConnections(false);
     }
-  }, [user?.id]); // ONLY user?.id in deps!
+  }, [userId]);
 
   useEffect(() => {
-    let isCancelled = false;
-    async function init() {
-      if (!user?.id) return;
-      setLoadingConnections(true);
-      let loadedConns = [];
-      try {
-        loadedConns = await connectionApi.getConnections(user.id);
-        if (!isCancelled) {
-          connectionsRef.current = loadedConns || [];
-          setConnections(loadedConns || []);
-        }
-      } catch {
-        // Fail silently
-      } finally {
-        if (!isCancelled) setLoadingConnections(false);
-      }
-      if (!isCancelled) {
-        loadFeed(loadedConns);
-      }
-    }
-    init();
-    return () => { isCancelled = true; };
-  }, [user?.id, loadFeed]);
+    loadData();
+  }, [loadData]);
 
   function handlePostCreated(newPost) {
     setPosts((prev) => [newPost, ...prev]);
@@ -184,7 +158,7 @@ export function FeedPage() {
                   <span className="feed-sort-label">Sort by: <strong>Recent</strong></span>
                   <button
                     className="btn btn-ghost btn-icon btn-sm feed-refresh-btn"
-                    onClick={() => loadFeed()}
+                    onClick={loadData}
                     aria-label="Refresh feed"
                     id="refresh-feed-btn"
                     title="Refresh feed"
@@ -198,7 +172,7 @@ export function FeedPage() {
               {error ? (
                 <div className="card" style={{ padding: 24, textAlign: 'center' }}>
                   <p style={{ color: 'var(--color-danger)', marginBottom: 12 }}>{error}</p>
-                  <button className="btn btn-outline-primary" onClick={() => loadFeed()}>
+                  <button className="btn btn-outline-primary" onClick={loadData}>
                     Try Again
                   </button>
                 </div>
@@ -246,8 +220,8 @@ export function FeedPage() {
                       description="Go to Network to send connection requests."
                     />
                   ) : (
-                    connections.slice(0, 5).map((person) => (
-                      <ConnectionCard key={person.id} person={person} variant="connected" />
+                    connections.slice(0, 5).map((person, idx) => (
+                      <ConnectionCard key={person.userId || person.id || idx} person={person} variant="connected" />
                     ))
                   )}
                   {connections.length > 5 && (
