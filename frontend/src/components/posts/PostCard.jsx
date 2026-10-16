@@ -1,5 +1,6 @@
 import './PostCard.css';
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { Avatar } from '../ui/Avatar';
 import { formatDateTime, getErrorMessage } from '../../utils/helpers';
 import { postApi } from '../../api/postApi';
@@ -54,7 +55,7 @@ export function PostCard({ post, authorName, isOwnPost = false, onDelete }) {
     <article className="post-card card animate-fade-in" aria-label={`Post by ${displayName}`}>
       {/* Header */}
       <div className="post-header">
-        <div className="post-author-info">
+        <Link to={`/profile/${post.userId}`} className="post-author-info" style={{ textDecoration: 'none', cursor: 'pointer' }}>
           <Avatar name={displayName} userId={post.userId} size="md" />
           <div className="post-author-text">
             <span className="post-author-name">{displayName}</span>
@@ -63,7 +64,7 @@ export function PostCard({ post, authorName, isOwnPost = false, onDelete }) {
               {isOwnPost && <span className="post-own-badge">Your post</span>}
             </span>
           </div>
-        </div>
+        </Link>
         {isOwnPost && (
           <div style={{ position: 'relative' }}>
             <button

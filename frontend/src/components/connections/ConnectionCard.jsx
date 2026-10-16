@@ -5,6 +5,7 @@ import { getErrorMessage } from '../../utils/helpers';
 import toast from 'react-hot-toast';
 import { UserCheck, UserPlus, X, Check } from 'lucide-react';
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 
 /**
  * ConnectionCard renders a single person from the connections API.
@@ -61,13 +62,21 @@ export function ConnectionCard({ person, variant = 'connected', onAction }) {
     }
   }
 
+  const navigate = useNavigate();
+  const targetId = person.userId || person.id;
+
   return (
     <div className="connection-card animate-fade-in" aria-label={`${person.name} connection card`}>
-      <Avatar name={person.name} userId={person.userId} size="md" />
+      <div
+        onClick={() => targetId && navigate(`/profile/${targetId}`)}
+        style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', flex: 1, minWidth: 0 }}
+      >
+        <Avatar name={person.name} userId={targetId} size="md" />
 
-      <div className="connection-card-info">
-        <span className="connection-card-name">{person.name}</span>
-        <span className="connection-card-sub">User #{person.userId}</span>
+        <div className="connection-card-info">
+          <span className="connection-card-name">{person.name}</span>
+          <span className="connection-card-sub">User #{targetId}</span>
+        </div>
       </div>
 
       <div className="connection-card-actions">

@@ -1,5 +1,6 @@
 import './ConnectionsPage.css';
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { connectionApi } from '../../api/connectionApi';
 import { userApi } from '../../api/userApi';
@@ -196,11 +197,21 @@ export function ConnectionsPage() {
     (c.name || '').toLowerCase().includes(connectionsFilter.toLowerCase())
   );
 
-  // Discoverable people: exclude self, dismissed, and already connected people
-  const connectedIdSet = new Set(connections.map((c) => c.userId || c.id));
-  const visibleEligibleUsers = eligibleUsers.filter(
-    (u) => u.id !== user?.id && !dismissedIds.has(u.id) && !connectedIdSet.has(u.id)
-  );
+  // Discoverable people: exclude self, dismissed, already connected, and pending requests
+  const connectedIdSet = new Set(connections.map((c) => String(c.userId || c.id)));
+  const pendingSentIdSet = new Set(sentRequests.map((s) => String(s.userId || s.id)));
+  const pendingReceivedIdSet = new Set(invitations.map((i) => String(i.userId || i.id)));
+
+  const visibleEligibleUsers = eligibleUsers.filter((u) => {
+    const uidStr = String(u.id);
+    const myIdStr = String(user?.id);
+    if (uidStr === myIdStr) return false;
+    if (dismissedIds.has(u.id) || dismissedIds.has(uidStr)) return false;
+    if (connectedIdSet.has(uidStr)) return false;
+    if (pendingSentIdSet.has(uidStr)) return false;
+    if (pendingReceivedIdSet.has(uidStr)) return false;
+    return true;
+  });
 
   return (
     <>
@@ -360,7 +371,11 @@ export function ConnectionsPage() {
                               <X size={14} />
                             </button>
 
-                            <div className="person-result-top">
+                            <Link
+                              to={`/profile/${person.id}`}
+                              className="person-result-top"
+                              style={{ textDecoration: 'none', cursor: 'pointer', color: 'inherit' }}
+                            >
                               <div className="person-avatar-wrap">
                                 <Avatar
                                   name={person.name}
@@ -372,7 +387,7 @@ export function ConnectionsPage() {
                               <h4 className="person-result-name">{person.name}</h4>
                               <p className="person-result-email">{person.email}</p>
                               <span className="person-result-badge">LinkUp Member</span>
-                            </div>
+                            </Link>
 
                             <div className="person-result-action">
                               {isMe ? (
@@ -469,7 +484,11 @@ export function ConnectionsPage() {
                         return (
                           <div key={person.id} className="person-result-card">
                             <div className="person-card-banner" />
-                            <div className="person-result-top">
+                            <Link
+                              to={`/profile/${person.id}`}
+                              className="person-result-top"
+                              style={{ textDecoration: 'none', cursor: 'pointer', color: 'inherit' }}
+                            >
                               <div className="person-avatar-wrap">
                                 <Avatar
                                   name={person.name}
@@ -480,7 +499,7 @@ export function ConnectionsPage() {
                               </div>
                               <h4 className="person-result-name">{person.name}</h4>
                               <p className="person-result-email">{person.email}</p>
-                            </div>
+                            </Link>
 
                             <div className="person-result-action">
                               {isMe ? (
@@ -580,18 +599,23 @@ export function ConnectionsPage() {
                       {filteredConnections.map((conn) => {
                         const connId = conn.userId || conn.id;
                         return (
-                          <div key={connId} className="connected-person-card">
+                          <Link
+                            key={connId}
+                            to={`/profile/${connId}`}
+                            className="connected-person-card"
+                            style={{ textDecoration: 'none', color: 'inherit', cursor: 'pointer' }}
+                          >
                             <div className="connected-person-left">
                               <Avatar name={conn.name} userId={connId} imageUrl={conn.profileImageUrl} size="md" />
                               <div className="connected-person-info">
                                 <span className="connected-person-name">{conn.name || `User #${connId}`}</span>
-                                <span className="connected-person-status">1st degree connection • LinkUp Member</span>
+                                <span className="connected-person-status">1st degree connection • View profile</span>
                               </div>
                             </div>
                             <span className="badge-pill badge-success">
                               <Check size={12} /> Connected
                             </span>
-                          </div>
+                          </Link>
                         );
                       })}
                     </div>
@@ -639,13 +663,18 @@ export function ConnectionsPage() {
                       {sentRequests.map((req) => {
                         const reqId = req.userId || req.id;
                         return (
-                          <div key={reqId} className="sent-request-item">
+                          <Link
+                            key={reqId}
+                            to={`/profile/${reqId}`}
+                            className="sent-request-item"
+                            style={{ textDecoration: 'none', color: 'inherit' }}
+                          >
                             <Avatar name={req.name} userId={reqId} imageUrl={req.profileImageUrl} size="xs" />
                             <div className="sent-request-info">
                               <span className="sent-request-name">{req.name || `User #${reqId}`}</span>
                               <span className="sent-request-status">Pending response</span>
                             </div>
-                          </div>
+                          </Link>
                         );
                       })}
                     </div>

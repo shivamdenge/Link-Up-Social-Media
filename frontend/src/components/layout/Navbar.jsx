@@ -234,10 +234,18 @@ export function Navbar() {
                       const status = statuses[person.id] || (isMe ? 'SELF' : 'NOT_CONNECTED');
                       return (
                         <div key={person.id} className="navbar-search-item">
-                          <Avatar name={person.name} userId={person.id} imageUrl={person.profileImageUrl} size="sm" />
-                          <div className="navbar-search-info">
-                            <span className="navbar-search-name">{person.name}</span>
-                            <span className="navbar-search-email">{person.email}</span>
+                          <div
+                            onClick={() => {
+                              setSearchOpen(false);
+                              navigate(`/profile/${person.id}`);
+                            }}
+                            style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', flex: 1 }}
+                          >
+                            <Avatar name={person.name} userId={person.id} imageUrl={person.profileImageUrl} size="sm" />
+                            <div className="navbar-search-info">
+                              <span className="navbar-search-name">{person.name}</span>
+                              <span className="navbar-search-email">{person.email}</span>
+                            </div>
                           </div>
 
                           <div className="navbar-search-action">
