@@ -3,6 +3,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { postApi } from '../../api/postApi';
 import { connectionApi } from '../../api/connectionApi';
+import { userApi } from '../../api/userApi';
 import { Navbar } from '../../components/layout/Navbar';
 import { ProfileCard } from '../../components/profile/ProfileCard';
 import { CreatePost } from '../../components/posts/CreatePost';
@@ -30,6 +31,7 @@ export function FeedPage() {
 
   const [posts, setPosts] = useState([]);
   const [connections, setConnections] = useState([]);
+  const [authorsMap, setAuthorsMap] = useState({});
   const [loadingPosts, setLoadingPosts] = useState(true);
   const [loadingConnections, setLoadingConnections] = useState(true);
   const [error, setError] = useState(null);
@@ -107,6 +109,33 @@ export function FeedPage() {
         );
       }
 
+      // 3. Resolve author names for all posts
+      const resolvedAuthors = {};
+      if (user?.id) resolvedAuthors[user.id] = user.name;
+      conns.forEach((c) => {
+        const cid = c.userId || c.id;
+        if (cid && c.name) resolvedAuthors[cid] = c.name;
+      });
+
+      const missingAuthorIds = Array.from(new Set(feedPosts.map((p) => p.userId)))
+        .filter((id) => id && !resolvedAuthors[id]);
+
+      if (missingAuthorIds.length > 0) {
+        try {
+          const authorResults = await Promise.allSettled(
+            missingAuthorIds.map((id) => userApi.getUserById(id))
+          );
+          authorResults.forEach((res) => {
+            if (res.status === 'fulfilled' && res.value && res.value.id && res.value.name) {
+              resolvedAuthors[res.value.id] = res.value.name;
+            }
+          });
+        } catch (e) {
+          console.warn('Could not resolve author names:', e);
+        }
+      }
+
+      setAuthorsMap(resolvedAuthors);
       setPosts(feedPosts || []);
     } catch (err) {
       setError(getErrorMessage(err));
@@ -195,7 +224,7 @@ export function FeedPage() {
                   <PostCard
                     key={post.id}
                     post={post}
-                    authorName={nameMap[post.userId] || (post.userId === user?.id ? user?.name : `User #${post.userId}`)}
+                    authorName={authorsMap[post.userId] || nameMap[post.userId] || (post.userId === user?.id ? user?.name : `User #${post.userId}`)}
                     isOwnPost={post.userId === user?.id}
                     onDelete={handleDeletePost}
                   />
