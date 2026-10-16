@@ -36,49 +36,106 @@ export function FeedPage() {
 
   // Build a map of userId → name from connections for post attribution
   const nameMap = connections.reduce((acc, person) => {
-    acc[person.userId] = person.name;
+    const pId = person.userId || person.id;
+    if (pId) {
+      acc[pId] = person.name;
+    }
     return acc;
   }, {});
   if (user) nameMap[user.id] = user.name;
 
-  const loadFeed = useCallback(async () => {
+  const loadFeed = useCallback(async (currentConnections) => {
     if (!user?.id) return;
     setLoadingPosts(true);
     setError(null);
 
     try {
-      // Use consolidated feed API from backend, fallback to user posts
       let feedPosts = [];
+      let backendFeedSuccess = false;
+
+      // 1. Try consolidated backend feed endpoint
       try {
-        feedPosts = await postApi.getFeed();
-      } catch {
-        feedPosts = await postApi.getPostsByUser(user.id);
+        const res = await postApi.getFeed();
+        if (Array.isArray(res) && res.length > 0) {
+          feedPosts = res;
+          backendFeedSuccess = true;
+        }
+      } catch (err) {
+        console.warn('Backend /feed route unavailable, using connection aggregation fallback:', err);
       }
+
+      // 2. If backend feed returned empty or failed, aggregate posts from current user + all connections
+      if (!backendFeedSuccess) {
+        let connsToQuery = currentConnections || connections;
+        if (!connsToQuery || connsToQuery.length === 0) {
+          try {
+            connsToQuery = await connectionApi.getConnections(user.id);
+            setConnections(connsToQuery || []);
+          } catch {
+            connsToQuery = [];
+          }
+        }
+
+        const postPromises = [
+          postApi.getPostsByUser(user.id).catch(() => [])
+        ];
+
+        if (Array.isArray(connsToQuery)) {
+          connsToQuery.forEach((conn) => {
+            const targetId = conn.userId || conn.id;
+            if (targetId && targetId !== user.id) {
+              postPromises.push(postApi.getPostsByUser(targetId).catch(() => []));
+            }
+          });
+        }
+
+        const settled = await Promise.allSettled(postPromises);
+        const allPosts = [];
+        settled.forEach((result) => {
+          if (result.status === 'fulfilled' && Array.isArray(result.value)) {
+            allPosts.push(...result.value);
+          }
+        });
+
+        // Deduplicate by post id and sort by createdAt desc
+        const postMap = new Map();
+        allPosts.forEach((p) => {
+          if (p && p.id && !postMap.has(p.id)) {
+            postMap.set(p.id, p);
+          }
+        });
+
+        feedPosts = Array.from(postMap.values()).sort(
+          (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
+        );
+      }
+
       setPosts(feedPosts || []);
     } catch (err) {
       setError(getErrorMessage(err));
     } finally {
       setLoadingPosts(false);
     }
-  }, [user?.id]);
-
-  const loadConnections = useCallback(async () => {
-    if (!user?.id) return;
-    setLoadingConnections(true);
-    try {
-      const conns = await connectionApi.getConnections(user.id);
-      setConnections(conns);
-    } catch {
-      // Fail silently
-    } finally {
-      setLoadingConnections(false);
-    }
-  }, [user?.id]);
+  }, [user?.id, connections]);
 
   useEffect(() => {
-    loadFeed();
-    loadConnections();
-  }, [loadFeed, loadConnections]);
+    async function init() {
+      let loadedConns = [];
+      if (user?.id) {
+        setLoadingConnections(true);
+        try {
+          loadedConns = await connectionApi.getConnections(user.id);
+          setConnections(loadedConns || []);
+        } catch {
+          // Fail silently
+        } finally {
+          setLoadingConnections(false);
+        }
+      }
+      loadFeed(loadedConns);
+    }
+    init();
+  }, [user?.id, loadFeed]);
 
   function handlePostCreated(newPost) {
     setPosts((prev) => [newPost, ...prev]);

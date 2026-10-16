@@ -34,19 +34,19 @@ public class PostController {
         return ResponseEntity.ok(feed);
     }
 
-    @GetMapping("/{postId}")
+    @GetMapping("/{postId:[0-9]+}")
     public ResponseEntity<PostDto> getPost(@PathVariable Long postId){
         PostDto postDto = postService.getPostById(postId);
         return ResponseEntity.ok(postDto);
     }
 
-    @GetMapping("/users/{userId}/allPosts")
+    @GetMapping("/users/{userId:[0-9]+}/allPosts")
     public ResponseEntity<List<PostDto>> getAllPostsOfUser(@PathVariable Long userId){
         List<PostDto> postDtoList = postService.getAllPostsOfUser(userId);
         return ResponseEntity.ok(postDtoList);
     }
 
-    @DeleteMapping("/{postId}")
+    @DeleteMapping("/{postId:[0-9]+}")
     public ResponseEntity<Void> deletePost(@PathVariable Long postId) {
         postService.deletePost(postId);
         return ResponseEntity.noContent().build();
